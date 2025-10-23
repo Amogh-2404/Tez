@@ -3,4 +3,7 @@ project(Tez)
 
 set(CMAKE_CXX_STANDARD 17)
 
+find_package(Boost REQUIRED)
+include_directories(${Boost_INCLUDE_DIRS})  # For header-only parts like Asio
 add_executable(Tez src/main.cpp)
+target_link_libraries(Tez ${Boost_LIBRARIES}) 
