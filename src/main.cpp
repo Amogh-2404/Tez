@@ -27,22 +27,37 @@ int main() {
                 continue;
             }
 
-            // Very simple response
-            std::string body = "Hello from Tez!\r\n";
-            std::string resp;
-            resp.reserve(128);
-            resp += "HTTP/1.1 200 OK\r\n";
-            resp += "Content-Type: text/plain; charset=utf-8\r\n";
-            resp += "Connection: close\r\n";
-            resp += "Content-Length: " + std::to_string(body.size()) + "\r\n";
-            resp += "\r\n";
-            resp += body;
+            std::string method, path , version;
+            std::istringstream iss(req);
+            iss>>method>>path>>version;
 
-            write(socket, asio::buffer(resp), ec);
-            if (ec) {
-                std::cerr << "Error sending response: " << ec.message() << "\n";
-            }
+           // Route based on path
+           std::string body;
+           std::string status = "200 OK";
+           if(path=="/"){
+            body = "Welcome to Tez! The home page.\r\n";
+           }else if(path=="/about"){
+            body = "About Tez: A high-performance web server in C++.\r\n";
+           }else{
+            status = "404 Not Found";
+            body = "Page Not Found.\r\n";
+           }
 
+           // Build response
+           std::string resp;
+           resp.reserve(128);
+           resp += "HTTP/1.1 " + status + "\r\n";
+           resp += "Content-Type: text/plain; charset=utf-8\r\n";
+           resp += "Connection: close\r\n";
+           resp += "Content-Length: " + std::to_string(body.size()) + "\r\n";
+           resp += "\r\n";
+           resp += body;
+
+           // Send response
+           write(socket,asio::buffer(resp),ec);
+           if(ec){
+            std::cerr<<"Error sending response: "<<ec.message()<<"\n";
+           }
             boost::system::error_code ignored;
             socket.shutdown(tcp::socket::shutdown_both, ignored);
             socket.close(ignored);
