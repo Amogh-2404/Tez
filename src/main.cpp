@@ -2,9 +2,18 @@
 #include <iostream>
 #include <string>
 #include <functional>
+#include <fstream>
+
 using boost::asio::ip::tcp;
 namespace asio = boost::asio;
 
+
+void log_request(const std::string& client_ip, const std::string& method, const std::string& path){
+    std::ofstream log_file("server.log", std::ios::app);
+    if(log_file){
+        log_file<<"["<<std::time(nullptr)<<"] "<<client_ip<< " - "<< method<<" "<<path << "\n";
+    }
+}
 
 void handle_request(tcp::socket socket){
     auto do_read = [&socket](std::string req){
@@ -15,10 +24,17 @@ void handle_request(tcp::socket socket){
             return;
         }
 
+        // Get client IP (for logging)
+        std::string client_ip = socket.remote_endpoint().address().to_string();
+
+
         // Parse and route
         std::string method, path , version;
         std::istringstream iss(req);
         iss >> method >> path >> version;
+
+        // Log the request (middleware)
+        log_request(client_ip, method, path);
 
         std::string body;
         std::string status = "200 OK";
