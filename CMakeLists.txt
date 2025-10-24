@@ -5,5 +5,6 @@ set(CMAKE_CXX_STANDARD 17)
 
 find_package(Boost REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})  # For header-only parts like Asio
-add_executable(Tez src/main.cpp)
+include_directories(include)
+add_executable(Tez src/main.cpp src/router.cpp src/middleware.cpp src/file_server.cpp)
 target_link_libraries(Tez ${Boost_LIBRARIES}) 
