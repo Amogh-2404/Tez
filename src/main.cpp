@@ -38,6 +38,26 @@ void handle_request(tcp::socket socket){
 
         std::string body;
         std::string status = "200 OK";
+        std::string content_type = "text/plain; charset=utf-8";
+
+
+        if(path.substr(0,8) == "/static/"){
+            std::string filename = path.substr(8);
+            std::string file_path = "../static/"+filename;
+            std::ifstream file(file_path, std::ios::binary);
+            if(file){
+                std::string file_content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+                body = file_content;
+                // Set MIME type based on file extension
+                if(path.find(".css")!=std::string::npos) content_type = "text/css";
+                else if(path.find(".html")!=std::string::npos) content_type = "text/html";
+                else content_type = "application/octet-stream";
+            }else{
+                status = "404 Not Found";
+                body = "File Not Found.\r\n";
+                content_type = "text/plain";
+            }
+        }else{
         if(path=="/"){
             body = "Welcome to Tez! The home page.\r\n";
         }else if(path=="/about"){
@@ -46,12 +66,13 @@ void handle_request(tcp::socket socket){
             status = "404 Not Found";
             body = "Page Not Found.\r\n";
         }
+    }
 
         // Build and send response
         std::string resp;
         resp.reserve(128);
         resp += "HTTP/1.1 " + status + "\r\n";
-        resp += "Content-Type: text/plain; charset=utf-8\r\n";
+        resp += "Content-Type: " + content_type + "\r\n";
         resp += "Connection: close\r\n";
         resp += "Content-Length: " + std::to_string(body.size()) + "\r\n";
         resp += "\r\n";
