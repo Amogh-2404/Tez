@@ -1,0 +1,17 @@
+{
+    "/": {
+        "status": "200 OK",
+        "content_type": "text/html; charset=utf-8",
+        "body": "<html><head><title>Tez Home</title><link rel='stylesheet' href='/static/style.css'></head><body><h1>Welcome to Tez!</h1><p>Your customizable web server.</p></body></html>"
+    },
+    "/about": {
+        "status": "200 OK",
+        "content_type": "text/html; charset=utf-8",
+        "body": "<html><head><title>About Tez</title><link rel='stylesheet' href='/static/style.css'></head><body><h1>About Tez</h1><p>A high-performance web server in C++.</p></body></html>"
+    },
+    "/test":{
+        "status": "200 OK",
+        "content_type": "text/plain; charset=utf-8", 
+        "body": "Test Page!"
+    }
+}
