@@ -11,69 +11,83 @@ using boost::asio::ip::tcp;
 namespace asio = boost::asio;
 
 void handle_request(tcp::socket socket){
-    auto do_read = [&socket](std::string req){
-        boost::system::error_code ec;
-        read_until(socket, asio::dynamic_buffer(req),"\r\n\r\n", ec);
-        if (ec) {
-            if (ec == boost::asio::error::eof || ec == boost::asio::error::connection_reset) {
-                // client closed the connection; nothing to do
+    while (true) {
+        auto do_read = [&socket](std::string req){
+            boost::system::error_code ec;
+            read_until(socket, asio::dynamic_buffer(req),"\r\n\r\n", ec);
+            if (ec) {
+                if (ec == boost::asio::error::eof || ec == boost::asio::error::connection_reset) {
+                    return;
+                }
+                std::cerr << "Error reading request: " << ec.message() << "\n";
+                std::string error_resp = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n";
+                boost::system::error_code ignored_ec;
+                write(socket, asio::buffer(error_resp), ignored_ec);
                 return;
             }
-            std::cerr << "Error reading request: " << ec.message() << "\n";
-            std::string error_resp = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n";
-            boost::system::error_code ignored_ec;
-            write(socket, asio::buffer(error_resp), ignored_ec);
-            return;
+
+            // Get client IP (for logging)
+            std::string client_ip = socket.remote_endpoint().address().to_string();
+
+            // Parse and route
+            std::string method, path , version;
+            std::istringstream iss(req);
+            iss >> method >> path >> version;
+
+            // Log the request (middleware)
+            log_request(client_ip, method, path);
+
+            std::string body;
+            std::string status = "200 OK";
+            std::string content_type = "text/plain; charset=utf-8";
+
+            Response response;
+            if (path.substr(0, 8) == "/static/") {
+                response = serve_file(path);
+            } else {
+                response = handle_route(path);
+            }
+            std::string connection = "close";
+            size_t conn_pos = req.find("Connection: ");
+            if(conn_pos != std::string::npos){
+                size_t end_pos = req.find("\r\n", conn_pos);
+                connection = req.substr(conn_pos + 12, end_pos-conn_pos-12);
+            }
+
+            // Build and send response
+            std::string resp;
+            resp.reserve(128);
+            resp += "HTTP/1.1 " + response.status + "\r\n";
+            resp += "Content-Type: " + response.content_type + "\r\n";
+            resp += std::string("Connection: ") + (connection == "keep-alive" ? "keep-alive" : "close") + std::string("\r\n");
+            resp += "Content-Length: " + std::to_string(response.body.size()) + "\r\n";
+            resp += "\r\n";
+            resp += response.body;
+
+            // Send response
+            boost::system::error_code send_ec;
+            write(socket, asio::buffer(resp), send_ec);
+            if (send_ec) {
+                std::cerr << "Error sending response: " << send_ec.message() << "\n";
+                return;
+            }
+
+            // Break loop if not keep-alive
+            if (connection != "keep-alive") {
+                boost::system::error_code ignored;
+                socket.shutdown(tcp::socket::shutdown_both, ignored);
+                socket.close(ignored);
+                return;
+            }
+        };
+
+        std::string req;
+        do_read(req);
+        // After handling, check if socket is still open for next request
+        if (!socket.is_open()) {
+            break;
         }
-
-        // Get client IP (for logging)
-        std::string client_ip = socket.remote_endpoint().address().to_string();
-
-
-        // Parse and route
-        std::string method, path , version;
-        std::istringstream iss(req);
-        iss >> method >> path >> version;
-
-        // Log the request (middleware)
-        log_request(client_ip, method, path);
-
-        std::string body;
-        std::string status = "200 OK";
-        std::string content_type = "text/plain; charset=utf-8";
-
-
-       Response response;
-        if (path.substr(0, 8) == "/static/") {
-            response = serve_file(path);
-        } else {
-            response = handle_route(path);
-        }
-
-        // Build and send response
-        std::string resp;
-        resp.reserve(128);
-        resp += "HTTP/1.1 " + response.status + "\r\n";
-        resp += "Content-Type: " + response.content_type + "\r\n";
-        resp += "Connection: close\r\n";
-        resp += "Content-Length: " + std::to_string(response.body.size()) + "\r\n";
-        resp += "\r\n";
-        resp += response.body;
-
-        // Send response
-        write(socket, asio::buffer(resp), ec);
-        if(ec){
-            std::cerr<<"Error sending response: "<<ec.message()<<"\n";
-        }
-
-        // Close connection
-        boost::system::error_code ignored;
-        socket.shutdown(tcp::socket::shutdown_both, ignored);
-        socket.close(ignored);
-    };
-
-    std::string req;
-    do_read(req);
+    }
 }
 
 
