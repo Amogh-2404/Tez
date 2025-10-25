@@ -5,6 +5,14 @@
 #include "middleware.hpp"
 
 Response handle_route(const std::string& path) {
+    if (path == "/health") {
+        Response resp;
+        resp.status = "200 OK";
+        resp.content_type = "application/json";
+        resp.body = "{\"status\":\"ok\"}\n";
+        return resp;
+    }
+
     Response cached = get_cached_response(path);
     if(!cached.body.empty()){
         return cached;

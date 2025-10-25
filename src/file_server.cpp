@@ -23,6 +23,34 @@ Response serve_file(const std::string& path) {
             // Set MIME type
             if (path.find(".css") != std::string::npos) resp.content_type = "text/css";
             else if (path.find(".html") != std::string::npos) resp.content_type = "text/html";
+            else if (path.find(".js") != std::string::npos) resp.content_type = "application/javascript";
+            else if (path.find(".png") != std::string::npos) resp.content_type = "image/png";
+            else if (path.find(".jpg") != std::string::npos) resp.content_type = "image/jpeg";
+            else if (path.find(".gif") != std::string::npos) resp.content_type = "image/gif";
+            else if (path.find(".svg") != std::string::npos) resp.content_type = "image/svg+xml";
+            else if (path.find(".webp") != std::string::npos) resp.content_type = "image/webp";
+            else if (path.find(".mp4") != std::string::npos) resp.content_type = "video/mp4";
+            else if (path.find(".mp3") != std::string::npos) resp.content_type = "audio/mpeg";
+            else if (path.find(".wav") != std::string::npos) resp.content_type = "audio/wav";
+            else if (path.find(".pdf") != std::string::npos) resp.content_type = "application/pdf";
+            else if (path.find(".zip") != std::string::npos) resp.content_type = "application/zip";
+            else if (path.find(".tar") != std::string::npos) resp.content_type = "application/x-tar";
+            else if (path.find(".gz") != std::string::npos) resp.content_type = "application/gzip";
+            else if (path.find(".bz2") != std::string::npos) resp.content_type = "application/x-bzip2";
+            else if (path.find(".7z") != std::string::npos) resp.content_type = "application/x-7z-compressed";
+            else if (path.find(".json") != std::string::npos) resp.content_type = "application/json";
+            else if (path.find(".xml") != std::string::npos) resp.content_type = "application/xml";
+            else if (path.find(".csv") != std::string::npos) resp.content_type = "text/csv";
+            else if (path.find(".txt") != std::string::npos) resp.content_type = "text/plain";
+            else if (path.find(".ico") != std::string::npos) resp.content_type = "image/x-icon";
+            else if (path.find(".woff") != std::string::npos) resp.content_type = "application/font-woff";
+            else if (path.find(".woff2") != std::string::npos) resp.content_type = "application/font-woff2";
+            else if (path.find(".ttf") != std::string::npos) resp.content_type = "application/font-ttf";
+            else if (path.find(".eot") != std::string::npos) resp.content_type = "application/vnd.ms-fontobject";
+            else if (path.find(".otf") != std::string::npos) resp.content_type = "application/font-otf";
+            else if (path.find(".webp") != std::string::npos) resp.content_type = "image/webp";
+            else if (path.find(".webm") != std::string::npos) resp.content_type = "video/webm";
+            else if (path.find(".webp") != std::string::npos) resp.content_type = "image/webp";
             else resp.content_type = "application/octet-stream";
         } else {
             resp.status = "404 Not Found";
