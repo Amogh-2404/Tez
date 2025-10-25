@@ -13,7 +13,9 @@ void handle_request(tcp::socket socket){
         boost::system::error_code ec;
         read_until(socket, asio::dynamic_buffer(req),"\r\n\r\n", ec);
         if(ec){
-            std::cerr<<"Error reading: "<<ec.message()<<"\n";
+            std::cerr << "Error reading request: " << ec.message() << "\n";
+            std::string error_resp = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n";
+            write(socket, asio::buffer(error_resp), ec);
             return;
         }
 
