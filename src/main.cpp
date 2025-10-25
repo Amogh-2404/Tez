@@ -1,6 +1,8 @@
 #include <boost/asio.hpp>
 #include <iostream>
 #include <string>
+#include <functional>
+#include <sstream>
 #include "router.hpp"
 #include "middleware.hpp"
 #include "file_server.hpp"
@@ -12,10 +14,15 @@ void handle_request(tcp::socket socket){
     auto do_read = [&socket](std::string req){
         boost::system::error_code ec;
         read_until(socket, asio::dynamic_buffer(req),"\r\n\r\n", ec);
-        if(ec){
+        if (ec) {
+            if (ec == boost::asio::error::eof || ec == boost::asio::error::connection_reset) {
+                // client closed the connection; nothing to do
+                return;
+            }
             std::cerr << "Error reading request: " << ec.message() << "\n";
             std::string error_resp = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n";
-            write(socket, asio::buffer(error_resp), ec);
+            boost::system::error_code ignored_ec;
+            write(socket, asio::buffer(error_resp), ignored_ec);
             return;
         }
 

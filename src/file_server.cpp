@@ -1,8 +1,15 @@
 #include "file_server.hpp"
 #include <fstream>
 #include <iostream>
+#include "middleware.hpp"
 
 Response serve_file(const std::string& path) {
+    Response cached = get_cached_file(path);
+    if (!cached.body.empty()) {
+        return cached;
+    }
+
+
     Response resp;
     resp.status = "200 OK";
     resp.content_type = "text/plain; charset=utf-8";
@@ -26,5 +33,6 @@ Response serve_file(const std::string& path) {
         resp.status = "400 Bad Request";
         resp.body = "Not a static file request.\r\n";
     }
+    cache_file(path, resp);
     return resp;
 }
