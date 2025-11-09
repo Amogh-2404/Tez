@@ -1,0 +1,132 @@
+name: Bug Report
+description: Report a bug or unexpected behavior
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out this form as completely as possible.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is
+      placeholder: When I try to..., the server...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior
+      placeholder: |
+        1. Build with 'cmake ..'
+        2. Run './Tez'
+        3. Send request 'curl ...'
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What you expected to happen
+      placeholder: The server should...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened
+      placeholder: The server instead...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and Error Messages
+      description: Any relevant logs or error messages
+      render: shell
+      placeholder: |
+        [1234567890] 127.0.0.1 - GET /api/data
+        Error: ...
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      description: What operating system are you using?
+      options:
+        - macOS
+        - Ubuntu/Debian
+        - Other Linux
+        - Windows (WSL)
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: OS Version
+      description: What version of the operating system?
+      placeholder: e.g., macOS 14.1, Ubuntu 22.04
+    validations:
+      required: true
+
+  - type: input
+    id: compiler
+    attributes:
+      label: Compiler
+      description: Which compiler and version?
+      placeholder: e.g., GCC 11.3, Clang 15.0, MSVC 2022
+    validations:
+      required: true
+
+  - type: input
+    id: boost-version
+    attributes:
+      label: Boost Version
+      description: What version of Boost are you using?
+      placeholder: e.g., 1.81.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: build-type
+    attributes:
+      label: Build Type
+      description: How did you build Tez?
+      options:
+        - CMake (default)
+        - Docker
+        - Custom build
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other context about the problem
+      placeholder: This only happens when...
+
+  - type: checkboxes
+    id: search
+    attributes:
+      label: Pre-submission Checklist
+      description: Please confirm you've done the following
+      options:
+        - label: I searched existing issues and didn't find a duplicate
+          required: true
+        - label: I can reproduce this bug reliably
+          required: true
+        - label: I've included all relevant information above
+          required: true
