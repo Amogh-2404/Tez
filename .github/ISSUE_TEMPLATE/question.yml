@@ -1,0 +1,68 @@
+name: Question
+description: Ask a question about Tez
+title: "[Question]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have a question? We're here to help!
+
+        **Before asking:**
+        - Check the [README](https://github.com/Amogh-2404/tez#readme)
+        - Check the [documentation](https://github.com/Amogh-2404/tez#documentation)
+        - Search [existing issues](https://github.com/Amogh-2404/tez/issues)
+        - Check [CLAUDE.md](https://github.com/Amogh-2404/tez/blob/main/CLAUDE.md) for architecture details
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your Question
+      description: What would you like to know?
+      placeholder: How do I...?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Question Category
+      description: What is your question about?
+      options:
+        - Building/Installation
+        - Configuration
+        - Usage/API
+        - Architecture/Design
+        - Performance
+        - Security
+        - Deployment
+        - Testing
+        - Contributing
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Any additional context that might help us answer
+      placeholder: I'm trying to build an embedded HTTP API for...
+
+  - type: textarea
+    id: what-tried
+    attributes:
+      label: What Have You Tried?
+      description: What have you already attempted?
+      placeholder: I tried looking at... but...
+
+  - type: checkboxes
+    id: search
+    attributes:
+      label: Pre-submission Checklist
+      description: Please confirm you've done the following
+      options:
+        - label: I checked the documentation
+          required: true
+        - label: I searched existing issues
+          required: true

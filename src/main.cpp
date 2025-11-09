@@ -17,11 +17,21 @@
 using boost::asio::ip::tcp;
 namespace asio = boost::asio;
 
+// Security limits
+constexpr size_t MAX_CONTENT_LENGTH = 10 * 1024 * 1024;  // 10 MB
+constexpr size_t MAX_HEADER_SIZE = 8 * 1024;              // 8 KB
+constexpr size_t MAX_KEEPALIVE_REQUESTS = 1000;           // Max requests per connection
+constexpr int REQUEST_TIMEOUT_SECONDS = 30;               // Request timeout
+
 void handle_request(tcp::socket socket){
+    size_t request_count = 0;  // Track requests per connection
+
     while (true) {
-        auto do_read = [&socket](){
+        auto do_read = [&socket, &request_count](){
             std::string req_headers;
             boost::system::error_code ec;
+
+            // Read headers with size limit
             read_until(socket, asio::dynamic_buffer(req_headers),"\r\n\r\n", ec);
             if (ec) {
                 if (ec == boost::asio::error::eof || ec == boost::asio::error::connection_reset || ec == boost::asio::error::operation_aborted) {
@@ -34,11 +44,53 @@ void handle_request(tcp::socket socket){
                 return;
             }
 
+            // Validate header size to prevent memory exhaustion
+            if (req_headers.size() > MAX_HEADER_SIZE) {
+                std::string error_resp = "HTTP/1.1 431 Request Header Fields Too Large\r\n"
+                                       "Content-Type: text/plain\r\n"
+                                       "Content-Length: 34\r\n"
+                                       "Connection: close\r\n\r\n"
+                                       "Request headers exceed size limit";
+                boost::system::error_code ignored_ec;
+                write(socket, asio::buffer(error_resp), ignored_ec);
+                socket.shutdown(tcp::socket::shutdown_both, ignored_ec);
+                socket.close(ignored_ec);
+                return;
+            }
+
             // Parse request headers
             Request request = parse_request(req_headers);
 
             // Read body if Content-Length is present
             int content_length = get_content_length(request.headers);
+
+            // Validate Content-Length to prevent memory exhaustion attack
+            if (content_length < 0) {
+                std::string error_resp = "HTTP/1.1 400 Bad Request\r\n"
+                                       "Content-Type: text/plain\r\n"
+                                       "Content-Length: 24\r\n"
+                                       "Connection: close\r\n\r\n"
+                                       "Invalid Content-Length";
+                boost::system::error_code ignored_ec;
+                write(socket, asio::buffer(error_resp), ignored_ec);
+                socket.shutdown(tcp::socket::shutdown_both, ignored_ec);
+                socket.close(ignored_ec);
+                return;
+            }
+
+            if (content_length > static_cast<int>(MAX_CONTENT_LENGTH)) {
+                std::string error_resp = "HTTP/1.1 413 Payload Too Large\r\n"
+                                       "Content-Type: text/plain\r\n"
+                                       "Content-Length: 44\r\n"
+                                       "Connection: close\r\n\r\n"
+                                       "Request body exceeds maximum allowed size";
+                boost::system::error_code ignored_ec;
+                write(socket, asio::buffer(error_resp), ignored_ec);
+                socket.shutdown(tcp::socket::shutdown_both, ignored_ec);
+                socket.close(ignored_ec);
+                return;
+            }
+
             if (content_length > 0) {
                 std::string body_buffer;
                 body_buffer.resize(content_length);
@@ -103,6 +155,14 @@ void handle_request(tcp::socket socket){
                 return;
             }
 
+            // Increment request counter
+            request_count++;
+
+            // Check if we've exceeded max keep-alive requests
+            if (request_count >= MAX_KEEPALIVE_REQUESTS) {
+                keep_alive = false;  // Force close after max requests
+            }
+
             // Break loop if not keep-alive
             if (!keep_alive) {
                 boost::system::error_code ignored;
@@ -123,6 +183,9 @@ void handle_request(tcp::socket socket){
 
 int main() {
     try {
+        // Initialize router configuration at startup
+        init_router_config();
+
         // Create thread pool with hardware concurrency threads
         unsigned int num_threads = std::thread::hardware_concurrency();
         if (num_threads == 0) num_threads = 4;  // Fallback to 4 threads
