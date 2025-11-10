@@ -4,7 +4,9 @@
 
 **A lightweight, high-performance HTTP/1.1 web server written in modern C++**
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
+[![CI/CD Pipeline](https://github.com/Amogh-2404/Tez/actions/workflows/ci.yml/badge.svg?branch=v1)](https://github.com/Amogh-2404/Tez/actions/workflows/ci.yml)
+[![Docker Pulls](https://img.shields.io/docker/pulls/ramogh2404/tez)](https://hub.docker.com/r/ramogh2404/tez)
+[![GitHub Release](https://img.shields.io/github/v/release/Amogh-2404/Tez)](https://github.com/Amogh-2404/Tez/releases/latest)
 [![C++17](https://img.shields.io/badge/C++-17-blue.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
