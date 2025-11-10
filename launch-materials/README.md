@@ -364,7 +364,7 @@ Everything is prepared:
 
 ### Essential URLs (Update These)
 - GitHub: `https://github.com/Amogh-2404/tez`
-- Docker Hub: `https://hub.docker.com/r/amogh-2404/tez`
+- Docker Hub: `https://hub.docker.com/r/ramogh2404/tez`
 - Documentation: `https://github.com/Amogh-2404/tez#readme`
 - Examples: `https://github.com/Amogh-2404/tez-examples`
 
