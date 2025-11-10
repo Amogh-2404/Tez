@@ -36,7 +36,7 @@ TEST_F(FileServerTest, ServesExistingFile) {
 TEST_F(FileServerTest, ReturnsNotFoundForMissingFile) {
     Response resp = serve_file("/static/nonexistent.txt");
     EXPECT_EQ(resp.status, "404 Not Found");
-    EXPECT_EQ(resp.content_type, "text/plain");
+    EXPECT_EQ(resp.content_type, "text/plain; charset=utf-8");
 }
 
 TEST_F(FileServerTest, CorrectMimeTypesForCSS) {

@@ -6,6 +6,9 @@
 class RouterTest : public ::testing::Test {
 protected:
     void SetUp() override {
+        // Initialize router configuration
+        init_router_config();
+
         // Create a test config file
         nlohmann::json test_config;
         test_config["/test"] = {
