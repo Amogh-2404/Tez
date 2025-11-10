@@ -198,8 +198,8 @@ git push
 ### 2.6 Verify Docker Image
 ```bash
 # Pull and test the image
-docker pull amogh-2404/tez:latest
-docker run -p 8080:8080 amogh-2404/tez:latest
+docker pull ramogh2404/tez:latest
+docker run -p 8080:8080 ramogh2404/tez:latest
 
 # In another terminal
 curl http://localhost:8080/health
@@ -209,8 +209,8 @@ curl http://localhost:8080/health
 ### 2.7 Update README with Badges
 - [ ] Add Docker badges to README.md:
 ```markdown
-[![Docker Pulls](https://img.shields.io/docker/pulls/amogh-2404/tez)](https://hub.docker.com/r/amogh-2404/tez)
-[![Docker Image Size](https://img.shields.io/docker/image-size/amogh-2404/tez/latest)](https://hub.docker.com/r/amogh-2404/tez)
+[![Docker Pulls](https://img.shields.io/docker/pulls/ramogh2404/tez)](https://hub.docker.com/r/ramogh2404/tez)
+[![Docker Image Size](https://img.shields.io/docker/image-size/ramogh2404/tez/latest)](https://hub.docker.com/r/ramogh2404/tez)
 ```
 
 ---
