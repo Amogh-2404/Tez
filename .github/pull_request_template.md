@@ -49,7 +49,7 @@ Provide details about your testing:
 ## Documentation
 
 - [ ] I have updated the README if needed
-- [ ] I have updated CLAUDE.md if architecture changed
+- [ ] I have updated README.md if architecture changed
 - [ ] I have updated SECURITY.md if security-related
 - [ ] I have added code comments for complex logic
 - [ ] I have updated CHANGELOG.md

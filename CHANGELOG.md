@@ -68,10 +68,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Vulnerability disclosure policy
   - Security best practices
   - Deployment checklist
-- Complete CLAUDE.md for AI/contributors
-  - Architecture walkthrough
-  - Component documentation
-  - Common modification patterns
+- Complete architecture documentation for contributors
 - CODE_OF_CONDUCT.md (Contributor Covenant 2.1)
 - CONTRIBUTING.md with detailed guidelines
 - MIT LICENSE

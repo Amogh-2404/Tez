@@ -81,8 +81,12 @@ std::string sanitize_path(const std::string& filename) {
         fs::path canonical_base = fs::weakly_canonical(base_path);
         fs::path canonical_requested = fs::weakly_canonical(requested_file);
 
-        // Ensure the resolved path is still within our static directory
-        if (canonical_requested.string().find(canonical_base.string()) != 0) {
+        // Ensure the resolved path is within our static directory (directory boundary check)
+        std::string base_str = canonical_base.string();
+        if (base_str.back() != '/') base_str += '/';
+        std::string req_str = canonical_requested.string();
+        if (req_str.length() < base_str.length() ||
+            req_str.compare(0, base_str.length(), base_str) != 0) {
             return "";  // Path escape attempt
         }
 
@@ -113,7 +117,7 @@ std::string get_mime_type(const std::string& path) {
 
 Response serve_file(const std::string& path) {
     Response cached = get_cached_file(path);
-    if (!cached.body.empty()) {
+    if (!cached.status.empty()) {
         return cached;
     }
 
@@ -147,6 +151,8 @@ Response serve_file(const std::string& path) {
         resp.status = "400 Bad Request";
         resp.body = "Not a static file request.\r\n";
     }
-    cache_file(path, resp);
+    if (!resp.status.empty() && resp.status[0] == '2') {
+        cache_file(path, resp);
+    }
     return resp;
 }

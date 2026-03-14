@@ -84,7 +84,6 @@ struct LRUCache {
 // Global caches with LRU eviction
 LRUCache<Response> cache(100, 60);       // Response cache: 100 entries, 60s TTL
 LRUCache<Response> file_cache(50, 60);   // File cache: 50 entries, 60s TTL
-const int CACHE_TTL_SECONDS = 60;         // Cache duration in seconds
 std::mutex cache_mutex;
 std::mutex file_cache_mutex;
 

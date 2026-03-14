@@ -3,6 +3,12 @@ project(Tez)
 
 set(CMAKE_CXX_STANDARD 17)
 
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    add_compile_options(-Wall -Wextra -Wpedantic)
+elseif(MSVC)
+    add_compile_options(/W4)
+endif()
+
 find_package(Boost REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(GTest QUIET)

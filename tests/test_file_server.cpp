@@ -57,3 +57,13 @@ TEST_F(FileServerTest, RejectNonStaticPaths) {
     Response resp = serve_file("/not-static/file.txt");
     EXPECT_EQ(resp.status, "400 Bad Request");
 }
+
+TEST_F(FileServerTest, RejectsPathTraversalAttempts) {
+    Response resp = serve_file("/static/../../../etc/passwd");
+    EXPECT_EQ(resp.status, "403 Forbidden");
+}
+
+TEST_F(FileServerTest, RejectsPathWithTilde) {
+    Response resp = serve_file("/static/~root/.bashrc");
+    EXPECT_EQ(resp.status, "403 Forbidden");
+}

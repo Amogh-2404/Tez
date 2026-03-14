@@ -81,7 +81,7 @@ The process described here has several goals:
 
 4. **Update documentation**
    - Update README.md if you changed functionality
-   - Update CLAUDE.md if you changed architecture
+   - Update README.md if you changed architecture
    - Add comments to explain complex code
 
 5. **Ensure your code builds without warnings**
@@ -305,7 +305,7 @@ Fixes #67
 When adding new features:
 
 1. **Update README.md** if user-facing
-2. **Update CLAUDE.md** if architectural
+2. **Update README.md** if architectural
 3. **Update SECURITY.md** if security-related
 4. **Add inline comments** for complex logic
 5. **Update CHANGELOG.md** for releases

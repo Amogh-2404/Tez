@@ -21,7 +21,6 @@ namespace asio = boost::asio;
 constexpr size_t MAX_CONTENT_LENGTH = 10 * 1024 * 1024;  // 10 MB
 constexpr size_t MAX_HEADER_SIZE = 8 * 1024;              // 8 KB
 constexpr size_t MAX_KEEPALIVE_REQUESTS = 1000;           // Max requests per connection
-constexpr int REQUEST_TIMEOUT_SECONDS = 30;               // Request timeout
 
 void handle_request(tcp::socket socket){
     size_t request_count = 0;  // Track requests per connection
@@ -128,13 +127,14 @@ void handle_request(tcp::socket socket){
             }
 
             std::time_t now = std::time(nullptr);
-            std::tm tm = *std::gmtime(&now);
+            std::tm tm{};
+            gmtime_r(&now, &tm);
             std::ostringstream date_ss;
             date_ss << std::put_time(&tm, "%a, %d %b %Y %H:%M:%S GMT");
 
             // Build and send response
             std::string resp;
-            resp.reserve(128);
+            resp.reserve(256 + response.body.size());
             resp += "HTTP/1.1 " + response.status + "\r\n";
             resp += "Content-Type: " + response.content_type + "\r\n";
             resp += "Date: " + date_ss.str() + "\r\n";

@@ -47,7 +47,7 @@ Response handle_route(const std::string& path) {
     }
 
     Response cached = get_cached_response(path);
-    if(!cached.body.empty()){
+    if(!cached.status.empty()){
         return cached;
     }
 
@@ -77,7 +77,9 @@ Response handle_route(const std::string& path) {
         resp.body = "Internal server error.\n";
     }
 
-    cache_response(path, resp);
+    if (!resp.status.empty() && resp.status[0] == '2') {
+        cache_response(path, resp);
+    }
     return resp;
 }
 

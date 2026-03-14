@@ -2,6 +2,7 @@
 #include <sstream>
 #include <algorithm>
 #include <cctype>
+#include <climits>
 
 Request parse_request(const std::string& raw_request) {
     Request req;
@@ -67,9 +68,11 @@ int get_content_length(const std::unordered_map<std::string, std::string>& heade
     auto it = headers.find("content-length");
     if (it != headers.end()) {
         try {
-            return std::stoi(it->second);
-        } catch (...) {
-            return 0;
+            long val = std::stol(it->second);
+            if (val < 0 || val > INT_MAX) return -1;
+            return static_cast<int>(val);
+        } catch (const std::exception&) {
+            return -1;
         }
     }
     return 0;
