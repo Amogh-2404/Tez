@@ -252,30 +252,9 @@ DELETE /api/data
 
 ### Architecture
 
-```
-Client Request
-     ↓
-TCP Acceptor (port 8080)
-     ↓
-Thread Pool Workers (N = CPU cores)
-     ↓
-handle_request()
-     ├→ Parse HTTP headers
-     ├→ Validate request size
-     ├→ Read request body
-     ├→ Route to handler:
-     │    ├→ /static/* → FileServer (with cache)
-     │    ├→ /health → Health endpoint
-     │    ├→ /echo → Echo endpoint
-     │    ├→ /api/* → REST API
-     │    └→ Other → Router (with cache)
-     ↓
-Response
-     ├→ Build HTTP response
-     ├→ Set headers (Date, Server, Connection, Keep-Alive)
-     ├→ Send to client
-     └→ Loop for keep-alive or close
-```
+<div align="center">
+<img src="diagrams/01-system-overview.svg" alt="System Architecture Overview" width="850">
+</div>
 
 **Key Components:**
 - **main.cpp**: Entry point, async connection handling, thread pool management
@@ -285,9 +264,33 @@ Response
 - **thread_pool.cpp**: Fixed-size thread pool for concurrent requests
 - **request.cpp**: HTTP request parsing
 
+### Request Lifecycle
+
+<div align="center">
+<img src="diagrams/02-request-flow.svg" alt="Request Lifecycle" width="900">
+</div>
+
+### TCP Connection ↔ Boost.Asio Mapping
+
+<div align="center">
+<img src="diagrams/06-tcp-lifecycle.svg" alt="TCP Lifecycle mapped to Boost.Asio" width="800">
+</div>
+
 ---
 
 ## Performance
+
+### Threading Model
+
+<div align="center">
+<img src="diagrams/03-threading-model.svg" alt="Threading Model" width="850">
+</div>
+
+### LRU Caching System
+
+<div align="center">
+<img src="diagrams/04-lru-cache.svg" alt="LRU Cache — O(1) Get & Put" width="900">
+</div>
 
 ### Benchmarks
 
@@ -324,6 +327,12 @@ ab -n 10000 -c 100 http://localhost:8080/health
 ---
 
 ## Security
+
+### Path Sanitization — Defense in Depth
+
+<div align="center">
+<img src="diagrams/05-security-defense.svg" alt="Path Sanitization Defense Layers" width="650">
+</div>
 
 ### Security Features
 
