@@ -4,6 +4,15 @@ Changes are recorded against the source tree. An unreleased entry does not imply
 
 ## Unreleased — 1.1.0-dev
 
+### Developer experience
+
+- Add `--check-config` to validate runtime settings, routes, and the static root without opening a listener.
+- Report selected configuration and static paths with the configured route count; identify files, routes, and fields in configuration errors.
+- Support `-h`, help and version alongside runtime options, and actionable unknown-option, missing-value, and numeric-range errors.
+- Validate IPv6 zone suffixes explicitly and print canonical listener addresses in startup diagnostics.
+- Retain container listener and content defaults when adding runtime flags; allow explicit overrides without repeating unrelated settings.
+- Add an editable HTTP fixture example with fixed success/error responses, a same-origin static page, and a validate/run/edit/restart guide.
+
 ### HTTP and runtime
 
 - Replace blocking per-connection workers and manual framing with Boost.Beast asynchronous HTTP sessions.

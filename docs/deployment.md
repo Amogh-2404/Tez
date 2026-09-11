@@ -17,7 +17,7 @@ The command stays in the foreground. Stop it with `Ctrl-C`, or run `docker stop 
 
 | Image setting | Value |
 | --- | --- |
-| Executable / entrypoint | `/usr/local/bin/Tez` |
+| Executable | `/usr/local/bin/Tez` |
 | Working directory | `/app` |
 | User and group | `10001:10001` |
 | Container listener | `0.0.0.0:8080` |
@@ -54,7 +54,7 @@ docker run --rm --name tez \
 
 The files must be readable and their directories traversable by UID `10001`. Keep mounted content under trusted control. Route changes require a restart; static requests revalidate file metadata before using cache entries.
 
-Arguments after the image name replace Docker's entire default `CMD`. Repeat the address and paths when changing settings:
+Arguments after the image name extend the image's entrypoint defaults. Add only the settings you want to change; when a valued option appears more than once, the last value wins:
 
 ```sh
 docker run --rm --name tez \
@@ -62,19 +62,29 @@ docker run --rm --name tez \
   --memory=512m --cpus=2 --pids-limit=128 \
   -p 127.0.0.1:8080:8080 \
   tez:local \
-  --address 0.0.0.0 --port 8080 \
-  --config /app/config.json --static-dir /app/static \
   --threads 2 --max-connections 32 --body-limit 1048576 --timeout 15
 ```
 
 The resource values are an example allocation, not a measured capacity guarantee. A large response is buffered for each active request; align file sizes, concurrency, and memory limits with the actual workload. The image health check targets port `8080`; override it if you change the internal port. Changing only the published host port does not require a different health check.
 
-Inspect CLI help without starting the server:
+Inspect CLI help or validate the bundled configuration without starting a listener:
 
 ```sh
 docker run --rm tez:local --help
 docker run --rm tez:local --version
+docker run --rm --read-only tez:local --check-config
 ```
+
+For content mounted elsewhere, override just the relevant paths. This checks the route configuration and static root, then exits:
+
+```sh
+docker run --rm --read-only \
+  --mount type=bind,src="$(pwd)/config.json",dst=/content/config.json,readonly \
+  --mount type=bind,src="$(pwd)/static",dst=/content/static,readonly \
+  tez:local --config /content/config.json --static-dir /content/static --check-config
+```
+
+Successful validation prints the resolved paths and configured route count. It does not test HTTP responses or every file below the static root.
 
 ## Compose
 
@@ -113,7 +123,7 @@ Filesystem reads and logging are synchronous. Avoid network filesystems or block
 | Symptom | Check |
 | --- | --- |
 | Native startup cannot load configuration | Use explicit paths; check working directory, syntax, permissions, and size |
-| Container runs but cannot be reached | Include `--address 0.0.0.0` when replacing the default arguments; check port mapping |
+| Container runs but cannot be reached | Check port mapping and any explicit `--address` or `--port` override |
 | Static file returns `403` | Remove symlinks, traversal components, or invalid encodings; check permissions |
 | Static file returns `404` | Verify the mounted path and case-sensitive filename |
 | Container health fails on a custom port | Override the health check's URL to match the internal port |

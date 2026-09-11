@@ -12,18 +12,37 @@ This reference describes the development source. Run `Tez --version` and `Tez --
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `--address` | `127.0.0.1` | IP address to bind; use `0.0.0.0` deliberately for all IPv4 interfaces |
+| `--address` | `127.0.0.1` | IPv4 or IPv6 address to bind; use `0.0.0.0` deliberately for all IPv4 interfaces; hostnames are not accepted |
 | `--port` | `8080` | TCP port; `0` requests an available port from the OS |
 | `--threads` | Hardware concurrency capped at 8; fallback 1 | Number of I/O workers, 1–256 |
-| `--config` | `config.json` | JSON file containing fixed response routes |
-| `--static-dir` | `static` | Root of the public static file tree |
+| `--config` | Discovery, described below | JSON file containing fixed response routes |
+| `--static-dir` | Discovery, described below | Root of the public static file tree |
 | `--timeout` | `30` | Seconds allowed for each header-read, body-read, or response-write phase, 1–3600 |
 | `--max-connections` | `128` | Maximum admitted sessions, 1–65536 |
 | `--body-limit` | `1048576` | Maximum decoded request body in bytes, 1–10485760 |
-| `--help` | — | Print usage and exit |
+| `--check-config` | — | Validate configuration and exit without opening a listener |
+| `--help`, `-h` | — | Print usage and exit |
 | `--version` | — | Print version and exit |
 
+Pass options and their values as separate arguments. A repeated valued option uses its last value; all supplied numeric values must still pass validation. `--help`, `-h`, and `--version` can appear alongside other valid options and exit before loading files. Unknown options, missing values, and invalid numeric values produce an error and exit status `1`; numeric errors include the accepted range. Prefix flag-like relative filenames with `./` so they are treated as values.
+
+An IPv6 address may include a `%zone` suffix, using an existing interface name or a decimal scope ID from `0` through `4294967295`. Empty, malformed, and unknown named zones are rejected. Startup displays IPv6 addresses in brackets and uses a numeric scope ID when present. A successful configuration check does not establish that an address or numeric scope can be bound on the current machine.
+
 Explicit relative paths are resolved from the working directory. With no path flags, discovery checks `config.json` and `static` there, then falls back to `../config.json` and `../static` for the older build-directory invocation. Missing implicit config permits built-in routes; missing implicit static content produces file misses. An invalid explicit path fails startup. Prefer explicit paths in services and containers. Command-line settings are not read from the route JSON, and no environment-variable configuration layer is provided.
+
+Startup reports the selected absolute paths, the number of configured routes, and the `/static/` URL prefix. The route count excludes built-in endpoints. If discovery finds no config or static directory, the summary explicitly reports built-in routes only or disabled static files. Route edits require a restart.
+
+## Check before running
+
+Validate your files without starting the server:
+
+```sh
+./build/Tez --check-config --config config.json --static-dir static
+```
+
+Success prints `Configuration valid.`, followed by the same path and route-count summary as startup, and exits with status `0`. Failure prints the diagnostic to stderr and exits with status `1`. Configuration errors include the file path; route validation errors identify the route and offending field where applicable. For example, a numeric `body` value produces `route "/hello": body must be a string`. Paths and keys are escaped in diagnostics.
+
+The check validates command-line values and the route file, and opens the static root directory. It does not bind a port, check port availability, inspect every static file, or issue HTTP requests. The same discovery rules apply: missing implicit files are permitted, while missing explicitly selected paths fail. Use explicit paths when a preflight check must require particular files.
 
 ## Routes
 

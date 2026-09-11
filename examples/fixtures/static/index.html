@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>HTTP fixtures · Tez</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="demo.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <header>
+        <a class="wordmark" href="https://github.com/Amogh-2404/Tez">Tez<span> / examples</span></a>
+        <p class="eyebrow">Local HTTP fixtures</p>
+        <h1>Your files.<br>Your responses.</h1>
+        <p class="intro">This page and its responses come from the same Tez server. Send a request, inspect the result, then edit <code>routes.json</code> and restart Tez to change it.</p>
+      </header>
+
+      <section class="request-panel" aria-labelledby="request-heading">
+        <div class="panel-heading">
+          <span class="step">01</span>
+          <h2 id="request-heading">Send a request</h2>
+        </div>
+        <form id="request-form">
+          <div class="fields">
+            <label for="method">Method
+              <select id="method" name="method">
+                <option value="GET">GET</option>
+                <option value="HEAD">HEAD</option>
+              </select>
+            </label>
+            <label for="path">Fixture
+              <select id="path" name="path">
+                <option value="/fixtures/profile">/fixtures/profile — JSON profile</option>
+                <option value="/hello">/hello — plain text</option>
+                <option value="/fixtures/unavailable">/fixtures/unavailable — 503 response</option>
+              </select>
+            </label>
+          </div>
+          <button id="send" type="submit">Send request <span aria-hidden="true">↗</span></button>
+        </form>
+        <p class="hint">These fixtures accept GET and HEAD. HEAD returns the response headers without a body.</p>
+        <p id="feedback" class="feedback" role="status" aria-live="polite">Ready. Choose a fixture and send a request.</p>
+        <noscript><p>This interactive example needs JavaScript. You can also open <a href="/fixtures/profile">the profile fixture</a> directly or use the curl commands in the example README.</p></noscript>
+      </section>
+
+      <section class="response-panel" aria-labelledby="response-heading">
+        <div class="panel-heading">
+          <span class="step">02</span>
+          <h2 id="response-heading">Inspect the response</h2>
+          <span id="status" class="status">No request yet</span>
+        </div>
+        <h3>Response headers</h3>
+        <pre id="headers" tabindex="0" aria-label="Response headers">The browser will show the response headers here.</pre>
+        <h3>Response body</h3>
+        <pre id="body" tabindex="0" aria-label="Response body">The response body will appear here.</pre>
+      </section>
+
+      <aside aria-labelledby="edit-heading">
+        <span class="step">03</span>
+        <div>
+          <h2 id="edit-heading">Change the fixture. Run it again.</h2>
+          <p>In <code>examples/fixtures/routes.json</code>, change <code>starter</code> to <code>pro</code> in the profile response. Stop Tez with <kbd>Ctrl</kbd> + <kbd>C</kbd>, then run the same start command. Send another GET request to see the new value.</p>
+          <p>Responses are fixed at startup. There is no stored application state, and query strings do not select different fixtures.</p>
+        </div>
+      </aside>
+      <footer>
+        <span>A working example from Tez.</span>
+        <a href="https://github.com/Amogh-2404/Tez/tree/main/examples/fixtures">Read the example</a>
+      </footer>
+    </main>
+  </body>
+</html>

@@ -71,7 +71,7 @@ A file at `static/style.css` is served at `/static/style.css`. Configured routes
 
 | Setting | Value |
 | --- | --- |
-| Entrypoint | `/usr/local/bin/Tez` |
+| Executable | `/usr/local/bin/Tez` |
 | User | `10001:10001` |
 | Listener inside container | `0.0.0.0:8080` |
 | Configuration | `/app/config.json` |
@@ -79,15 +79,27 @@ A file at `static/style.css` is served at `/static/style.css`. Configured routes
 | Request logs | stderr, available through `docker logs` |
 | Filesystem | Read-only operation supported |
 
-Inspect options with `docker run --rm tez:local --help`.
+Inspect options with `docker run --rm tez:local --help`, or print the version with `docker run --rm tez:local --version`.
 
-Arguments after the image name replace the default command arguments. To tune workers, repeat the listener and paths:
+Arguments after the image name extend the image's defaults. To tune workers, supply only the settings you want to change:
 
 ```sh
 docker run --rm -p 127.0.0.1:8080:8080 tez:local \
-  --address 0.0.0.0 --config /app/config.json --static-dir /app/static \
   --threads 2 --max-connections 32 --timeout 15
 ```
+
+The listener remains `0.0.0.0:8080`, with routes from `/app/config.json` and files from `/app/static`. Explicit `--address`, `--config`, or `--static-dir` arguments override those defaults; the last value of a repeated option wins.
+
+Validate mounted content without starting a listener:
+
+```sh
+docker run --rm --read-only \
+  --mount type=bind,src="$(pwd)/config.json",dst=/content/config.json,readonly \
+  --mount type=bind,src="$(pwd)/static",dst=/content/static,readonly \
+  tez:local --config /content/config.json --static-dir /content/static --check-config
+```
+
+Validation reports the resolved paths and configured route count. It checks the configuration and static root, not every file or HTTP response.
 
 ## Scope and limits
 

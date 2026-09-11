@@ -1,10 +1,12 @@
 #include "file_server.hpp"
+#include "diagnostics.hpp"
 #include "middleware.hpp"
 #include <algorithm>
 #include <atomic>
 #include <cerrno>
 #include <cstdint>
 #include <fcntl.h>
+#include <filesystem>
 #include <memory>
 #include <string_view>
 #include <sys/stat.h>
@@ -165,25 +167,23 @@ Response open_error(int error) {
 }
 } // namespace
 
-void configure_static_root(const std::string &path) {
-    int fd = -1;
-    if (path.empty()) {
-        fd = ::open("static", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
-        if (fd < 0 && errno == ENOENT) {
-            fd = ::open("../static", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
-        }
-        if (fd < 0 && errno != ENOENT) {
-            throw std::system_error(errno, std::generic_category(), "Cannot open static directory");
-        }
-    } else {
-        fd = ::open(path.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
-        if (fd < 0) {
-            throw std::system_error(errno, std::generic_category(), "Cannot open static directory");
-        }
+std::string configure_static_root(const std::string &path) {
+    auto selected = path.empty() ? std::string("static") : path;
+    int fd = ::open(selected.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (path.empty() && fd < 0 && errno == ENOENT) {
+        selected = "../static";
+        fd = ::open(selected.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    }
+    if (fd < 0 && (!path.empty() || errno != ENOENT)) {
+        const auto error = errno;
+        throw std::system_error(error, std::generic_category(),
+                                "Cannot open static directory " + quote_diagnostic(selected));
     }
     FileDescriptor opened_root(fd);
+    const auto resolved = fd < 0 ? std::string() : std::filesystem::absolute(selected).string();
     const auto root = std::make_shared<const FileDescriptor>(std::move(opened_root));
     std::atomic_store(&static_root, root);
+    return resolved;
 }
 
 Response serve_file(const std::string &path) {

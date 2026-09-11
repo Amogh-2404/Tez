@@ -1,0 +1,17 @@
+{
+  "/hello": {
+    "status": "200 OK",
+    "content_type": "text/plain; charset=utf-8",
+    "body": "hello, Tez\n"
+  },
+  "/fixtures/profile": {
+    "status": "200 OK",
+    "content_type": "application/json",
+    "body": "{\"name\":\"Ada\",\"plan\":\"starter\"}\n"
+  },
+  "/fixtures/unavailable": {
+    "status": "503 Service Unavailable",
+    "content_type": "application/json",
+    "body": "{\"error\":\"temporarily_unavailable\",\"message\":\"Try again later.\"}\n"
+  }
+}

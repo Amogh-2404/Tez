@@ -10,13 +10,14 @@
 
 <p align="center">
   <a href="#build-and-run">Get started</a> ·
+  <a href="examples/fixtures/README.md">Examples</a> ·
   <a href="docs/configuration.md">Configuration</a> ·
   <a href="docs/architecture.md">Architecture</a> ·
   <a href="docs/deployment.md">Containers</a> ·
   <a href="docs/engineering.md">Engineering notes</a>
 </p>
 
-Tez is my C++ HTTP server project: a small codebase for understanding what happens between accepting a connection and writing a response. It combines Boost.Beast's HTTP parser with Boost.Asio's asynchronous networking, JSON routes, and static file serving.
+Tez is a compact C++17 HTTP server for serving local files, keeping fixed HTTP responses in Git, and following a request from socket to response. It combines Boost.Beast's HTTP parser with Boost.Asio's asynchronous networking, JSON routes, and static file serving.
 
 The focus is explicit behavior: bounded requests, ordered responses, controlled file access, and tests that exercise the actual wire protocol. This checkout is **1.1.0-dev**. It is under active development; published images may contain older code. There is no current performance ranking or production-readiness claim.
 
@@ -63,23 +64,44 @@ cd Tez
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
 cmake --build build --parallel 2
 ctest --test-dir build --output-on-failure
-./build/Tez --config config.json --static-dir static
 ```
-
-Tez listens on `127.0.0.1:8080`. Stop it with `Ctrl-C`. In another terminal:
-
-```sh
-curl --fail http://127.0.0.1:8080/health
-curl --fail http://127.0.0.1:8080/static/style.css
-curl --head http://127.0.0.1:8080/health
-curl --fail http://127.0.0.1:8080/echo \
-  -H 'Content-Type: application/json' \
-  --data-binary '{"message":"hello, Tez"}'
-```
-
-`/health` returns `{"status":"ok"}`. `/echo` returns the method, received body, and byte count. `/api/data` demonstrates method dispatch; its create, update, and delete responses do not persist data.
 
 For a server-only build, pass `-DBUILD_TESTING=OFF`. See [CONTRIBUTING.md](CONTRIBUTING.md) for sanitizers and development checks.
+
+### Run, request, edit, repeat
+
+Start with the [fixed-response example](examples/fixtures/README.md). Validate its paths and routes, then start the server:
+
+```sh
+./build/Tez --check-config \
+  --config examples/fixtures/routes.json --static-dir examples/fixtures/static
+./build/Tez \
+  --config examples/fixtures/routes.json --static-dir examples/fixtures/static
+```
+
+`--check-config` validates configuration without opening a listener and exits nonzero if validation fails. The start command listens on `127.0.0.1:8080`. In another terminal:
+
+```sh
+curl --fail http://127.0.0.1:8080/hello
+```
+
+Expected body:
+
+```text
+hello, Tez
+```
+
+Open [examples/fixtures/routes.json](examples/fixtures/routes.json) and change the `/hello` route's `body` to `"hello from my project\n"`. Stop Tez with `Ctrl-C`, rerun the validation and start commands, then request `/hello` again:
+
+```text
+hello from my project
+```
+
+Routes are loaded at startup, so editing the file requires a restart. Each configured route returns a fixed response to `GET` or `HEAD`; it does not store application state.
+
+Open [http://127.0.0.1:8080/static/index.html](http://127.0.0.1:8080/static/index.html) for a small browser demo served by the same process. It sends real same-origin requests to the JSON, text, and error fixtures. The [example guide](examples/fixtures/README.md) also covers static files, `HEAD`, failure responses, and `/echo`.
+
+The built-in `/health` returns `{"status":"ok"}`. To run the repository's welcome page instead, stop the example and run `./build/Tez --config config.json --static-dir static`.
 
 ## Run in Docker
 

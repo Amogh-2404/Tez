@@ -35,5 +35,5 @@ EXPOSE 8080
 STOPSIGNAL SIGTERM
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD wget -q -T 2 -O /dev/null http://127.0.0.1:8080/health || exit 1
-ENTRYPOINT ["/usr/local/bin/Tez"]
-CMD ["--address", "0.0.0.0", "--config", "/app/config.json", "--static-dir", "/app/static"]
+ENTRYPOINT ["/usr/local/bin/Tez", "--address", "0.0.0.0", "--config", "/app/config.json", "--static-dir", "/app/static"]
+CMD []

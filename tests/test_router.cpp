@@ -35,6 +35,52 @@ TEST_F(RouterTest, ConfiguredRoutesUseTheSuppliedFile) {
     EXPECT_EQ(handle_route("/json").body, "{\"test\":true}");
 }
 
+TEST_F(RouterTest, ReportsLoadedConfigurationPathAndRouteCount) {
+    const auto path = directory.path / "config.json";
+    const auto info = init_router_config(path.string());
+    EXPECT_EQ(info.path, std::filesystem::absolute(path).string());
+    EXPECT_EQ(info.route_count, 2u);
+}
+
+TEST_F(RouterTest, ConfigurationErrorsIdentifyFileRouteAndField) {
+    const auto valid = config["/test"];
+    const std::vector<std::pair<nlohmann::json, std::string>> invalid = {
+        {42, "expected an object"},
+        {{{"status", "200 OK"}, {"content_type", "text/plain"}}, "missing required field \"body\""},
+        {{{"status", "200 OK"}, {"content_type", "text/plain"}, {"body", 42}},
+         "body must be a string"},
+        {{{"status", "200 OK"}, {"content_type", "text/plain"}, {"body", ""}, {"typo", ""}},
+         "unknown field \"typo\""},
+        {{{"status", "99 Nope"}, {"content_type", "text/plain"}, {"body", ""}},
+         "status must contain a code from 200 through 599"},
+        {{{"status", "200 OK"}, {"content_type", ""}, {"body", ""}},
+         "content_type must contain 1..256 printable ASCII bytes"},
+        {{{"status", "204 No Content"}, {"content_type", "text/plain"}, {"body", "unexpected"}},
+         "body must be empty for status 204"}};
+    for (const auto &[route, expected] : invalid) {
+        config = {{"/broken", route}};
+        try {
+            reload();
+            FAIL() << "Invalid configuration was accepted";
+        } catch (const std::runtime_error &error) {
+            const std::string message = error.what();
+            EXPECT_NE(message.find("config.json"), std::string::npos);
+            EXPECT_NE(message.find("route \"/broken\""), std::string::npos);
+            EXPECT_NE(message.find(expected), std::string::npos) << message;
+        }
+        EXPECT_EQ(handle_route("/test").body, "Test response");
+    }
+    config = {{"/bad\npath", valid}};
+    try {
+        reload();
+        FAIL() << "Invalid route path was accepted";
+    } catch (const std::runtime_error &error) {
+        const std::string message = error.what();
+        EXPECT_NE(message.find("/bad\\npath"), std::string::npos);
+        EXPECT_EQ(message.find('\n'), std::string::npos);
+    }
+}
+
 TEST_F(RouterTest, HealthAndConfiguredRoutesSupportHeadAndIgnoreQueries) {
     for (const auto &path : {"/health", "/test", "/api/data"}) {
         const auto get = handle_route(path);

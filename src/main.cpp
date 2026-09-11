@@ -7,11 +7,13 @@
 #include <charconv>
 #include <chrono>
 #include <csignal>
+#include <cstdint>
 #include <ctime>
 #include <iomanip>
 #include <iostream>
 #include <locale>
 #include <memory>
+#include <net/if.h>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
@@ -19,6 +21,7 @@
 #include <thread>
 #include <vector>
 
+#include "diagnostics.hpp"
 #include "file_server.hpp"
 #include "middleware.hpp"
 #include "request.hpp"
@@ -43,11 +46,14 @@ struct Options {
     unsigned timeout = 30;
     std::size_t max_connections = 128;
     std::size_t body_limit = DEFAULT_BODY_LIMIT;
+    bool check_config = false;
+    bool help = false;
+    bool version = false;
 };
 
 void usage(std::ostream &out) {
     out << "Usage: Tez [options]\n"
-        << "  --address ADDRESS       Bind address (default: 127.0.0.1)\n"
+        << "  --address ADDRESS       IPv4 or IPv6 bind address (default: 127.0.0.1)\n"
         << "  --port PORT             TCP port; 0 selects a free port (default: 8080)\n"
         << "  --threads COUNT         I/O workers, 1..256 (default: min(CPU threads, 8))\n"
         << "  --config PATH           Route configuration JSON\n"
@@ -55,7 +61,8 @@ void usage(std::ostream &out) {
         << "  --timeout SECONDS       Deadline per header, body, or write, 1..3600 (default: 30)\n"
         << "  --max-connections COUNT Concurrent connections, 1..65536 (default: 128)\n"
         << "  --body-limit BYTES      Request body limit, 1..10485760 (default: 1048576)\n"
-        << "  --help                  Show this help\n"
+        << "  --check-config          Validate configuration and exit without listening\n"
+        << "  --help, -h              Show this help\n"
         << "  --version               Show version\n";
 }
 
@@ -65,7 +72,9 @@ std::size_t number(const std::string &value, std::size_t min, std::size_t max,
     const auto parsed = std::from_chars(value.data(), value.data() + value.size(), result);
     if (value.empty() || parsed.ec != std::errc{} || parsed.ptr != value.data() + value.size() ||
         result < min || result > max)
-        throw std::invalid_argument("Invalid value for " + option + ": " + value);
+        throw std::invalid_argument("Invalid value for " + option + ": " + quote_diagnostic(value) +
+                                    "; expected an integer in " + std::to_string(min) + ".." +
+                                    std::to_string(max));
     return result;
 }
 
@@ -73,9 +82,29 @@ Options parse_options(int argc, char *argv[]) {
     Options options;
     for (int i = 1; i < argc; ++i) {
         const std::string option = argv[i];
-        if (i + 1 >= argc)
+        if (option == "--help" || option == "-h") {
+            options.help = true;
+            continue;
+        }
+        if (option == "--version") {
+            options.version = true;
+            continue;
+        }
+        if (option == "--check-config") {
+            options.check_config = true;
+            continue;
+        }
+        if (option != "--address" && option != "--port" && option != "--threads" &&
+            option != "--config" && option != "--static-dir" && option != "--timeout" &&
+            option != "--max-connections" && option != "--body-limit")
+            throw std::invalid_argument("Unknown option: " + quote_diagnostic(option) +
+                                        "; use --help to see available options");
+        if (i + 1 >= argc || std::string(argv[i + 1]).compare(0, 2, "--") == 0 ||
+            std::string(argv[i + 1]) == "-h")
             throw std::invalid_argument("Missing value for " + option);
         const std::string value = argv[++i];
+        if (value.empty())
+            throw std::invalid_argument("Empty value for " + option);
         if (option == "--address")
             options.address = value;
         else if (option == "--port")
@@ -92,12 +121,67 @@ Options parse_options(int argc, char *argv[]) {
             options.max_connections = number(value, 1, 65536, option);
         else if (option == "--body-limit")
             options.body_limit = number(value, 1, MAX_CONTENT_LENGTH, option);
-        else
-            throw std::invalid_argument("Unknown option: " + option);
-        if (value.empty())
-            throw std::invalid_argument("Empty value for " + option);
     }
     return options;
+}
+
+asio::ip::address parse_bind_address(const std::string &value) {
+    const auto invalid = [&]() -> asio::ip::address {
+        throw std::invalid_argument(
+            "Invalid value for --address: " + quote_diagnostic(value) +
+            "; expected an IPv4 or IPv6 address; an IPv6 zone must be a decimal scope ID in "
+            "0..4294967295 or an existing interface name");
+    };
+    for (const unsigned char c : value) {
+        if (c <= 0x20 || c == 0x7f)
+            return invalid();
+    }
+    const auto separator = value.find('%');
+    boost::system::error_code error;
+    const auto address = asio::ip::make_address(value.substr(0, separator), error);
+    if (error)
+        return invalid();
+    if (separator == std::string::npos)
+        return address;
+    const auto zone = value.substr(separator + 1);
+    if (!address.is_v6() || zone.empty() || zone.find('%') != std::string::npos)
+        return invalid();
+    // Asio's POSIX parser falls back to atoi for unrecognized zones. Parse
+    // independently so junk suffixes cannot silently become scope zero.
+    std::uint32_t scope = 0;
+    if (std::all_of(zone.begin(), zone.end(), [](char c) { return c >= '0' && c <= '9'; })) {
+        const auto parsed = std::from_chars(zone.data(), zone.data() + zone.size(), scope);
+        if (parsed.ec != std::errc{} || parsed.ptr != zone.data() + zone.size())
+            return invalid();
+    } else {
+        scope = ::if_nametoindex(zone.c_str());
+        if (scope == 0)
+            return invalid();
+    }
+    auto ipv6 = address.to_v6();
+    ipv6.scope_id(scope);
+    return ipv6;
+}
+
+std::string display_bind_address(const asio::ip::address &address) {
+    if (address.is_v4())
+        return address.to_string();
+    auto ipv6 = address.to_v6();
+    const auto scope = ipv6.scope_id();
+    ipv6.scope_id(0);
+    return "[" + ipv6.to_string() + (scope ? "%" + std::to_string(scope) : "") + "]";
+}
+
+void print_configuration(const RouteConfigInfo &config, const std::string &static_root) {
+    if (config.path.empty())
+        std::cout << "Routes: built-ins only (no config file found)\n";
+    else
+        std::cout << "Routes: " << quote_diagnostic(config.path) << " (" << config.route_count
+                  << " configured; GET, HEAD)\n";
+    if (static_root.empty())
+        std::cout << "Static: disabled (no directory found)\n";
+    else
+        std::cout << "Static: " << quote_diagnostic(static_root) << " at /static/\n";
 }
 
 std::string http_date() {
@@ -330,10 +414,10 @@ class Session : public std::enable_shared_from_this<Session> {
 
 class Listener : public std::enable_shared_from_this<Listener> {
   public:
-    Listener(asio::io_context &io, const Options &options)
+    Listener(asio::io_context &io, const Options &options, const asio::ip::address &address)
         : io_(io), acceptor_(asio::make_strand(io)), retry_(acceptor_.get_executor()),
           options_(options), active_(std::make_shared<std::atomic_size_t>(0)) {
-        const tcp::endpoint endpoint(asio::ip::make_address(options.address), options.port);
+        const tcp::endpoint endpoint(address, options.port);
         acceptor_.open(endpoint.protocol());
         acceptor_.set_option(asio::socket_base::reuse_address(true));
         acceptor_.bind(endpoint);
@@ -394,28 +478,36 @@ class Listener : public std::enable_shared_from_this<Listener> {
 
 int main(int argc, char *argv[]) {
     try {
-        if (argc == 2 && std::string(argv[1]) == "--help") {
+        const auto options = parse_options(argc, argv);
+        if (options.help) {
             usage(std::cout);
             return 0;
         }
-        if (argc == 2 && std::string(argv[1]) == "--version") {
+        if (options.version) {
             std::cout << "Tez " << TEZ_VERSION << '\n';
             return 0;
         }
-        const auto options = parse_options(argc, argv);
-        init_router_config(options.config);
-        configure_static_root(options.static_dir);
+        const auto address = parse_bind_address(options.address);
+        const auto config = init_router_config(options.config);
+        const auto static_root = configure_static_root(options.static_dir);
+        if (options.check_config) {
+            std::cout << "Configuration valid.\n";
+            print_configuration(config, static_root);
+            return 0;
+        }
         asio::io_context io(static_cast<int>(options.threads));
-        auto listener = std::make_shared<Listener>(io, options);
+        auto listener = std::make_shared<Listener>(io, options, address);
         asio::signal_set signals(io, SIGINT, SIGTERM);
         signals.async_wait([listener](boost::system::error_code ec, int) {
             if (!ec)
                 listener->stop();
         });
         listener->run();
-        std::cout << "Tez " << TEZ_VERSION << " listening on " << options.address << ':'
-                  << listener->port() << " with " << options.threads << " I/O worker(s)"
-                  << std::endl;
+        std::cout << "Tez " << TEZ_VERSION << " listening on " << display_bind_address(address)
+                  << ':' << listener->port() << " with " << options.threads << " I/O worker(s)"
+                  << '\n';
+        print_configuration(config, static_root);
+        std::cout << "Restart Tez after editing routes.\n" << std::flush;
 
         std::atomic_bool failed{false};
         auto run = [&] {

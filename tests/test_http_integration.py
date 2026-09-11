@@ -154,6 +154,128 @@ class Server:
         self.close(validate=exc_type is None)
 
 
+class CliIntegrationTest(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="tez-cli-test-")
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name).resolve()
+        (self.root / "static").mkdir()
+        (self.root / "work").mkdir()
+        self.config = self.root / "routes.json"
+        self.config.write_text(json.dumps({
+            "/hello": {"status": "200 OK", "content_type": "text/plain", "body": "hello\n"},
+        }), encoding="utf-8")
+
+    def run_cli(self, *options, cwd=None):
+        result = subprocess.run(
+            [BINARY, *options], cwd=cwd or self.root, capture_output=True,
+            text=True, encoding="utf-8", timeout=5,
+        )
+        self.assertNotRegex(result.stderr, r"AddressSanitizer|UndefinedBehaviorSanitizer|LeakSanitizer|runtime error:")
+        return result
+
+    def test_check_config_succeeds_with_an_occupied_port_without_listening(self):
+        with socket.socket() as occupied:
+            occupied.bind(("127.0.0.1", 0))
+            occupied.listen(1)
+            result = self.run_cli(
+                "--port", str(occupied.getsockname()[1]), "--check-config",
+                "--config", str(self.config), "--static-dir", str(self.root / "static"),
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(result.stdout.startswith("Configuration valid.\n"))
+        self.assertIn(f'Routes: "{self.config}" (1 configured; GET, HEAD)', result.stdout)
+        self.assertIn(f'Static: "{self.root / "static"}" at /static/', result.stdout)
+        self.assertNotIn("listening on", result.stdout)
+
+    def test_check_config_reports_implicit_discovery_and_disabled_content(self):
+        work = self.root / "work"
+        result = self.run_cli("--check-config", cwd=work)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Routes: built-ins only (no config file found)", result.stdout)
+        self.assertIn("../static", result.stdout)
+        (self.root / "static").rmdir()
+        result = self.run_cli("--check-config", cwd=work)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Static: disabled (no directory found)", result.stdout)
+        (self.root / "config.json").write_bytes(self.config.read_bytes())
+        result = self.run_cli("--check-config", cwd=work)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("../config.json", result.stdout)
+        self.assertIn("(1 configured; GET, HEAD)", result.stdout)
+
+    def test_check_config_reports_invalid_route_and_explicit_paths(self):
+        self.config.write_text(json.dumps({
+            "/hello": {"status": "200 OK", "content_type": "text/plain", "body": 42},
+        }), encoding="utf-8")
+        result = self.run_cli("--check-config", "--config", str(self.config))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(str(self.config), result.stderr)
+        self.assertIn('route "/hello": body must be a string', result.stderr)
+        self.assertNotIn("Configuration valid", result.stdout)
+        self.config.write_text("{}", encoding="utf-8")
+        for flag in ["--config", "--static-dir"]:
+            with self.subTest(flag=flag):
+                result = self.run_cli("--check-config", flag, str(self.root / "missing"))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("missing", result.stderr)
+                self.assertNotIn("Configuration valid", result.stdout)
+
+    def test_help_and_version_work_with_other_options_without_loading_files(self):
+        defaults = ["--address", "0.0.0.0", "--config", "/nonexistent/routes.json",
+                    "--static-dir", "/nonexistent/static"]
+        for args in [["--help"], ["-h"], [*defaults, "--help"], ["-h", *defaults]]:
+            with self.subTest(args=args):
+                result = self.run_cli(*args)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("Usage: Tez", result.stdout)
+                self.assertIn("--check-config", result.stdout)
+                self.assertNotIn("listening on", result.stdout)
+        result = self.run_cli(*defaults, "--version")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertRegex(result.stdout, r"^Tez \S+\n$")
+
+    def test_cli_errors_name_unknown_flags_missing_values_and_ranges(self):
+        cases = [
+            (["--unknown"], "Unknown option"),
+            (["--port"], "Missing value for --port"),
+            (["--config", "--check-config"], "Missing value for --config"),
+            (["--threads", "0"], "expected an integer in 1..256"),
+            (["--port", "65536"], "expected an integer in 0..65535"),
+            (["--timeout", "1x"], "expected an integer in 1..3600"),
+            (["--body-limit", "0"], "expected an integer in 1..10485760"),
+            (["--max-connections", "-1"], "expected an integer in 1..65536"),
+            (["--address", "localhost", "--check-config"], "expected an IPv4 or IPv6 address"),
+        ]
+        for args, expected in cases:
+            with self.subTest(args=args):
+                result = self.run_cli(*args)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(expected, result.stderr)
+
+    def test_ipv6_zones_are_validated_without_permissive_numeric_fallback(self):
+        invalid = ["::1%", "::1%not-an-interface", "::1%1junk", "::1%-1",
+                   "::1%4294967296", "::1%1%2", "127.0.0.1%1", "::1%\nFORGED",
+                   "::1%\x1b[31m", "::1%\t1"]
+        for address in invalid:
+            with self.subTest(address=address):
+                result = self.run_cli("--check-config", "--address", address)
+                self.assertEqual(result.returncode, 1)
+                self.assertIn("Invalid value for --address", result.stderr)
+                self.assertNotIn("Configuration valid", result.stdout)
+                self.assertEqual(result.stderr.count("\n"), 1)
+                self.assertNotIn("\x1b", result.stderr)
+        valid = ["::1", "::1%0", "fe80::1%1", "fe80::1%4294967295"]
+        interfaces = socket.if_nameindex()
+        if interfaces:
+            valid.append("fe80::1%" + interfaces[0][1])
+        for address in valid:
+            with self.subTest(address=address):
+                result = self.run_cli("--check-config", "--address", address)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("Configuration valid.", result.stdout)
+
+
 class HttpIntegrationTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

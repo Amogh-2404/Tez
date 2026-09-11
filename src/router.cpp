@@ -1,15 +1,16 @@
 #include "router.hpp"
+#include "diagnostics.hpp"
 #include "request.hpp"
 #include <atomic>
 #include <cerrno>
 #include <cstdint>
 #include <fcntl.h>
 #include <filesystem>
-#include <iostream>
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
 #include <sys/stat.h>
+#include <system_error>
 #include <unistd.h>
 #include <unordered_map>
 #include <unordered_set>
@@ -70,7 +71,7 @@ std::string read_config(const std::string &path) {
     // Opening with O_NONBLOCK avoids waiting on a FIFO before fstat rejects it.
     ConfigFile file{::open(path.c_str(), O_RDONLY | O_CLOEXEC | O_NONBLOCK | O_NOCTTY)};
     if (file.descriptor < 0)
-        throw std::runtime_error("Cannot open route configuration: " + path);
+        throw std::system_error(errno, std::generic_category(), "Cannot open route configuration");
     struct stat info {};
     if (::fstat(file.descriptor, &info) < 0 || !S_ISREG(info.st_mode)) {
         throw std::runtime_error("Route configuration must be a regular file");
@@ -86,7 +87,8 @@ std::string read_config(const std::string &path) {
         if (count < 0 && errno == EINTR)
             continue;
         if (count < 0)
-            throw std::runtime_error("Cannot read route configuration");
+            throw std::system_error(errno, std::generic_category(),
+                                    "Cannot read route configuration");
         if (count == 0)
             break;
         offset += static_cast<std::size_t>(count);
@@ -110,7 +112,8 @@ nlohmann::json parse_config(const std::string &content) {
             object_keys.pop_back();
         else if (event == Json::parse_event_t::key &&
                  !object_keys.back().insert(parsed.get<std::string>()).second) {
-            throw std::runtime_error("Duplicate key in route configuration");
+            throw std::runtime_error("Duplicate key in route configuration: " +
+                                     quote_diagnostic(parsed.get<std::string>()));
         }
         return true;
     });
@@ -123,7 +126,7 @@ std::string dump_json(const nlohmann::json &value) {
 }
 } // namespace
 
-void init_router_config(const std::string &path) {
+RouteConfigInfo init_router_config(const std::string &path) {
     std::string config_path = path;
     if (config_path.empty()) {
         if (std::filesystem::exists("config.json"))
@@ -132,46 +135,69 @@ void init_router_config(const std::string &path) {
             config_path = "../config.json";
         else {
             std::atomic_store(&routes, std::make_shared<const Routes>());
-            std::cerr << "No config.json found; only built-in routes are enabled.\n";
-            return;
+            return {};
         }
     }
 
-    const auto config = parse_config(read_config(config_path));
-    if (!config.is_object())
-        throw std::runtime_error("Route configuration must be a JSON object");
+    config_path = std::filesystem::absolute(config_path).string();
+    try {
+        const auto config = parse_config(read_config(config_path));
+        if (!config.is_object())
+            throw std::runtime_error(
+                "Route configuration must be a JSON object keyed by route path");
 
-    auto next = std::make_shared<Routes>();
-    for (auto it = config.begin(); it != config.end(); ++it) {
-        const auto &route = it.value();
-        if (!valid_route_path(it.key()))
-            throw std::runtime_error("Invalid route path in configuration");
-        if (it.key() == "/health" || it.key() == "/echo" || it.key() == "/api/data" ||
-            it.key().compare(0, 8, "/static/") == 0) {
-            throw std::runtime_error("Configuration shadows a built-in route: " + it.key());
+        auto next = std::make_shared<Routes>();
+        for (auto it = config.begin(); it != config.end(); ++it) {
+            const auto &route = it.value();
+            const auto context = "route " + quote_diagnostic(it.key()) + ": ";
+            if (!valid_route_path(it.key()))
+                throw std::runtime_error(context + "path must be an absolute URI path of at most "
+                                                   "2048 bytes, without a query or fragment");
+            if (it.key() == "/health" || it.key() == "/echo" || it.key() == "/api/data" ||
+                it.key().compare(0, 8, "/static/") == 0) {
+                throw std::runtime_error(context + "path is reserved for a built-in route");
+            }
+            if (!route.is_object())
+                throw std::runtime_error(
+                    context +
+                    "expected an object containing status, content_type and body strings");
+            for (auto field = route.begin(); field != route.end(); ++field) {
+                if (field.key() != "status" && field.key() != "content_type" &&
+                    field.key() != "body")
+                    throw std::runtime_error(context + "unknown field " +
+                                             quote_diagnostic(field.key()) +
+                                             "; expected status, content_type and body");
+            }
+            for (const auto *field : {"status", "content_type", "body"}) {
+                if (!route.contains(field))
+                    throw std::runtime_error(context + "missing required field " +
+                                             quote_diagnostic(field));
+                if (!route[field].is_string())
+                    throw std::runtime_error(context + field + " must be a string");
+            }
+            auto configured = response(route["status"].get<std::string>(),
+                                       route["content_type"].get<std::string>(),
+                                       route["body"].get<std::string>());
+            if (!valid_status(configured.status))
+                throw std::runtime_error(
+                    context + "status must contain a code from 200 through 599 and a reason phrase "
+                              "(for example, 200 OK), using 5..128 printable ASCII bytes");
+            if (configured.content_type.size() > 256 || !printable_header(configured.content_type))
+                throw std::runtime_error(context +
+                                         "content_type must contain 1..256 printable ASCII bytes");
+            const auto code = configured.status.substr(0, 3);
+            if ((code == "204" || code == "205" || code == "304") && !configured.body.empty())
+                throw std::runtime_error(context + "body must be empty for status " + code);
+            if (code == "405")
+                configured.allow = "GET, HEAD";
+            next->emplace(it.key(), std::move(configured));
         }
-        if (!route.is_object() || route.size() != 3 || !route.contains("status") ||
-            !route["status"].is_string() || !route.contains("content_type") ||
-            !route["content_type"].is_string() || !route.contains("body") ||
-            !route["body"].is_string()) {
-            throw std::runtime_error("Each route requires status, content_type and body strings");
-        }
-        auto configured =
-            response(route["status"].get<std::string>(), route["content_type"].get<std::string>(),
-                     route["body"].get<std::string>());
-        if (!valid_status(configured.status) || configured.content_type.size() > 256 ||
-            !printable_header(configured.content_type)) {
-            throw std::runtime_error("Invalid status or content_type in route configuration");
-        }
-        const auto code = configured.status.substr(0, 3);
-        if ((code == "204" || code == "205" || code == "304") && !configured.body.empty()) {
-            throw std::runtime_error("Statuses 204, 205 and 304 require an empty body");
-        }
-        if (code == "405")
-            configured.allow = "GET, HEAD";
-        next->emplace(it.key(), std::move(configured));
+        RouteConfigInfo info{config_path, next->size()};
+        std::atomic_store(&routes, std::shared_ptr<const Routes>(std::move(next)));
+        return info;
+    } catch (const std::exception &error) {
+        throw std::runtime_error(quote_diagnostic(config_path) + ": " + error.what());
     }
-    std::atomic_store(&routes, std::shared_ptr<const Routes>(std::move(next)));
 }
 
 Response handle_route(const std::string &path) {
