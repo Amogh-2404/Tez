@@ -92,6 +92,8 @@ docker run --rm --name tez \
   -p 127.0.0.1:8080:8080 tez:local
 ```
 
+For the mutable `ramogh2404/tez:main` development image, see the [registry instructions](docs/deployment.md#development-registry-image). Verify its revision and pin a digest for deployments.
+
 The image runs as UID/GID `10001`, listens on port `8080` inside the container, and writes request logs to stderr. See [deployment](docs/deployment.md) for bind mounts, Compose, image tags, and resource sizing. The [Docker Hub overview](docs/dockerhub.md) is maintained alongside the code.
 
 ## Configure it

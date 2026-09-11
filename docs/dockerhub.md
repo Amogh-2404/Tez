@@ -1,6 +1,6 @@
-# Tez
+![Tez — HTTP, close to the metal.](https://raw.githubusercontent.com/Amogh-2404/Tez/main/docs/assets/tez-banner.png)
 
-**HTTP, close to the metal.**
+# Tez
 
 A compact C++17 HTTP server built on Boost.Beast and Boost.Asio. JSON routes, static files, explicit resource limits, and a codebase designed to be read.
 
@@ -9,6 +9,19 @@ A compact C++17 HTTP server built on Boost.Beast and Boost.Asio. JSON routes, st
 ## Version note
 
 The source is being developed toward 1.1.0. Existing registry tags can contain the earlier implementation. The commands and capabilities below describe a build of the current source; do not assume a historical `latest` or `1.0.0` image has them. Check the [published tags](https://hub.docker.com/r/ramogh2404/tez/tags), image revision, architecture, and digest before choosing a registry image.
+
+## Run the development image
+
+The publication workflow promotes verified `linux/amd64` and `linux/arm64` development builds to `ramogh2404/tez:main`. Confirm its source revision on the [Tags page](https://hub.docker.com/r/ramogh2404/tez/tags) matches a verified 1.1.0 development build before using these instructions; the tag may lag the source.
+
+```sh
+docker pull ramogh2404/tez:main
+docker run --rm --name tez \
+  --read-only --cap-drop=ALL --security-opt=no-new-privileges \
+  -p 127.0.0.1:8080:8080 ramogh2404/tez:main
+```
+
+`main` is a mutable development tag, not a stable release. For a deployment, replace it with the verified `ramogh2404/tez@sha256:…` digest recorded when pulling the image. The historical `latest` and `1.0.0` tags do not imply the same contents.
 
 ## Run the current source
 

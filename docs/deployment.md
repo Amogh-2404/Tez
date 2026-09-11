@@ -28,6 +28,19 @@ The command stays in the foreground. Stop it with `Ctrl-C`, or run `docker stop 
 
 The container's all-interface listener is needed for port publishing. The host-side `127.0.0.1:8080:8080` mapping limits the example to loopback. Omitting the host address exposes the port more broadly; choose that intentionally.
 
+## Development registry image
+
+The publication workflow promotes verified amd64/arm64 development builds to `ramogh2404/tez:main`. Check its revision on the [registry Tags page](https://hub.docker.com/r/ramogh2404/tez/tags) before using it; `main` may lag the current source.
+
+```sh
+docker pull ramogh2404/tez:main
+docker run --rm --name tez \
+  --read-only --cap-drop=ALL --security-opt=no-new-privileges \
+  -p 127.0.0.1:8080:8080 ramogh2404/tez:main
+```
+
+This is a mutable development tag. Pin the verified `ramogh2404/tez@sha256:…` digest for a deployment. Historical `latest` and `1.0.0` images may have different behavior; a tag's name is not a source revision.
+
 ## Mount your content
 
 ```sh
@@ -85,7 +98,7 @@ The registry repository is [ramogh2404/tez](https://hub.docker.com/r/ramogh2404/
 
 At the start of the 1.1.0 development work, the published `latest`, `1.0.0`, and `main` tags referred to historical amd64 images. New capabilities in this source tree are not retroactively present in those images. See the registry's [Tags page](https://hub.docker.com/r/ramogh2404/tez/tags) for published artifacts; use a verified digest when reproducibility matters.
 
-The maintained Docker Hub overview is [dockerhub.md](dockerhub.md). It intentionally leads with a source build while release artifacts catch up.
+The maintained Docker Hub overview is [dockerhub.md](dockerhub.md). It distinguishes development-image usage from a source build and historical release tags.
 
 ## Native service
 

@@ -45,7 +45,7 @@ If a check or publication fails, correct the problem and state which artifacts e
 
 ## Repository presentation
 
-The README uses [tez-banner.svg](assets/tez-banner.svg). Upload [tez-social.png](assets/tez-social.png) as the GitHub repository social preview; it is 1280×640. Its editable source is [tez-social.svg](assets/tez-social.svg). GitHub's social preview is a repository setting, so committing the PNG does not apply it automatically.
+The README uses [tez-banner.svg](assets/tez-banner.svg); Docker Hub uses its [PNG export](assets/tez-banner.png) through a public raw GitHub URL. Upload [tez-social.png](assets/tez-social.png) as the GitHub repository social preview; it is 1280×640. Its editable source is [tez-social.svg](assets/tez-social.svg). GitHub's social preview is a repository setting, so committing the PNG does not apply it automatically.
 
 Suggested repository description:
 
@@ -58,6 +58,7 @@ Regenerate native SVG artwork after editing [generate_artwork.py](assets/generat
 ```sh
 python3 docs/assets/generate_artwork.py
 rsvg-convert docs/assets/tez-social.svg -o docs/assets/tez-social.png
+rsvg-convert docs/assets/tez-banner.svg -o docs/assets/tez-banner.png
 ```
 
 `rsvg-convert` is provided by librsvg. Inspect every changed diagram and the banner at README display size. Keep alt text descriptive and update architecture text when components change. The sample homepage and About page are configured responses in [config.json](../config.json), styled by [static/style.css](../static/style.css).
