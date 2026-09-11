@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """Regenerate the repository's SVG artwork. Run from any directory."""
+import argparse
 from html import escape
 from pathlib import Path
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--assets-only', action='store_true', help='Regenerate banner and social artwork without rewriting architecture diagrams.')
+args = parser.parse_args()
 
 ROOT = Path(__file__).resolve().parents[2]
 INK = "#1b211e"
@@ -45,6 +50,8 @@ def arrow(parts, x1, y1, x2, y2, bend=None):
 
 
 def save(parts, filename, note, height=520):
+    if args.assets_only:
+        return
     parts += [text(40, height-26, note, 15, MUTED), '</g></svg>']
     (ROOT / 'diagrams' / filename).write_text('\n'.join(parts)+'\n')
 
@@ -137,16 +144,17 @@ def hero(height, social=False):
     title_y = 225 if social else 175
     parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="{height}" '
              f'viewBox="0 0 1280 {height}" role="img" aria-labelledby="title desc">',
-             '<title id="title">Tez — HTTP, close to the metal.</title>',
-             '<desc id="desc">A compact C++17 HTTP server built on Boost.Beast and Boost.Asio.</desc>',
+             '<title id="title">Tez — a compact C++17 HTTP server.</title>',
+             '<desc id="desc">JSON routes and static files for local development.</desc>',
              f'<rect width="1280" height="{height}" fill="#151b17"/>',
              '<g font-family="Helvetica,Arial,sans-serif">',
-             text(64, 58, "R. AMOGH / SYSTEMS PROJECT", 14, '#b4bcb3', 700),
+             text(64, 58, "R. AMOGH / OPEN SOURCE", 14, '#b4bcb3', 700),
              text(60, title_y, "Tez", 124, '#f7f6f1', 700),
-             text(64, title_y+68, "HTTP, close to the metal.", 38, '#f7f6f1', 400),
-             text(64, title_y+118, "A compact C++17 HTTP server.", 24, '#b4bcb3'),
+             text(64, title_y+68, "A compact C++17 HTTP server.", 38, '#f7f6f1', 400),
+             text(64, title_y+118, "JSON routes and static files for local development.", 24, '#b4bcb3'),
              f'<path d="M64 {height-75} H1216" stroke="#3a453c"/>',
-             text(64, height-38, "BOOST.BEAST  /  BOOST.ASIO  /  MIT", 14, '#b4bcb3', 700)]
+             text(64, height-38, "BOOST.BEAST  /  BOOST.ASIO  /  MIT", 14, '#b4bcb3', 700),
+             text(1095, height-38, "tez.ramogh.com", 14, '#b4bcb3', 700)]
     cy = height//2-35
     for i in range(3):
         y=cy-85+i*78

@@ -1,14 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-labelledby="title desc">
-<title id="title">Tez — HTTP, close to the metal.</title>
-<desc id="desc">A compact C++17 HTTP server built on Boost.Beast and Boost.Asio.</desc>
+<title id="title">Tez — a compact C++17 HTTP server.</title>
+<desc id="desc">JSON routes and static files for local development.</desc>
 <rect width="1280" height="640" fill="#151b17"/>
 <g font-family="Helvetica,Arial,sans-serif">
-<text x="64" y="58" font-size="14" fill="#b4bcb3" font-weight="700">R. AMOGH / SYSTEMS PROJECT</text>
+<text x="64" y="58" font-size="14" fill="#b4bcb3" font-weight="700">R. AMOGH / OPEN SOURCE</text>
 <text x="60" y="225" font-size="124" fill="#f7f6f1" font-weight="700">Tez</text>
-<text x="64" y="293" font-size="38" fill="#f7f6f1" font-weight="400">HTTP, close to the metal.</text>
-<text x="64" y="343" font-size="24" fill="#b4bcb3" font-weight="400">A compact C++17 HTTP server.</text>
+<text x="64" y="293" font-size="38" fill="#f7f6f1" font-weight="400">A compact C++17 HTTP server.</text>
+<text x="64" y="343" font-size="24" fill="#b4bcb3" font-weight="400">JSON routes and static files for local development.</text>
 <path d="M64 565 H1216" stroke="#3a453c"/>
 <text x="64" y="602" font-size="14" fill="#b4bcb3" font-weight="700">BOOST.BEAST  /  BOOST.ASIO  /  MIT</text>
+<text x="1095" y="602" font-size="14" fill="#b4bcb3" font-weight="700">tez.ramogh.com</text>
 <path d="M925 200 H1120 L1170 234 H1060" fill="none" stroke="#e9b457" stroke-width="12"/>
 <circle cx="915" cy="200" r="7" fill="#e9b457"/>
 <path d="M925 278 H1120 L1170 312 H1060" fill="none" stroke="#718473" stroke-width="12"/>

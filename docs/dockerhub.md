@@ -1,10 +1,10 @@
-![Tez — HTTP, close to the metal.](https://raw.githubusercontent.com/Amogh-2404/Tez/main/docs/assets/tez-banner.png)
+![Tez — a compact C++17 HTTP server for JSON routes and static files.](https://raw.githubusercontent.com/Amogh-2404/Tez/main/docs/assets/tez-banner.png)
 
 # Tez
 
-A compact C++17 HTTP server built on Boost.Beast and Boost.Asio. JSON routes, static files, explicit resource limits, and a codebase designed to be read.
+A compact C++17 HTTP server for local development, built on Boost.Beast and Boost.Asio. Serve fixed responses from JSON configuration, serve static files, and inspect request bodies at `/echo`.
 
-[Source](https://github.com/Amogh-2404/Tez) · [Documentation](https://github.com/Amogh-2404/Tez/tree/main/docs) · [Issues](https://github.com/Amogh-2404/Tez/issues) · [License](https://github.com/Amogh-2404/Tez/blob/main/LICENSE)
+[Website](https://tez.ramogh.com) · [Source](https://github.com/Amogh-2404/Tez) · [Documentation](https://github.com/Amogh-2404/Tez/tree/main/docs) · [Issues](https://github.com/Amogh-2404/Tez/issues) · [License](https://github.com/Amogh-2404/Tez/blob/main/LICENSE)
 
 ## Version note
 
@@ -42,7 +42,7 @@ curl --fail http://127.0.0.1:8080/health
 
 Stop with `Ctrl-C` or `docker stop tez`. The health endpoint returns `{"status":"ok"}`.
 
-## Bring your routes and files
+## Configure routes and static files
 
 ```sh
 docker run --rm --name tez \
@@ -67,7 +67,7 @@ A route configuration looks like this:
 
 A file at `static/style.css` is served at `/static/style.css`. Configured routes are loaded at startup; restart after editing them. Mounted files must be readable by UID `10001`. Symlinks below the static root are rejected.
 
-## Image contract
+## Container defaults
 
 | Setting | Value |
 | --- | --- |

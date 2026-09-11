@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/tez-banner.svg" alt="Tez — HTTP, close to the metal. A compact C++17 HTTP server." width="100%">
+  <img src="docs/assets/tez-banner.svg" alt="Tez — a compact C++17 HTTP server for JSON routes and static files." width="100%">
 </p>
 
 <p align="center">
@@ -9,6 +9,7 @@
 </p>
 
 <p align="center">
+  <a href="https://tez.ramogh.com">Website</a> ·
   <a href="#build-and-run">Get started</a> ·
   <a href="examples/fixtures/README.md">Examples</a> ·
   <a href="docs/configuration.md">Configuration</a> ·
@@ -17,9 +18,9 @@
   <a href="docs/engineering.md">Engineering notes</a>
 </p>
 
-Tez is a compact C++17 HTTP server for serving local files, keeping fixed HTTP responses in Git, and following a request from socket to response. It combines Boost.Beast's HTTP parser with Boost.Asio's asynchronous networking, JSON routes, and static file serving.
+Tez is a compact C++17 HTTP server for local development. Define fixed responses in JSON, serve files under `/static/`, and inspect request bodies at `/echo`. It uses Boost.Beast for HTTP parsing and Boost.Asio for asynchronous networking.
 
-The focus is explicit behavior: bounded requests, ordered responses, controlled file access, and tests that exercise the actual wire protocol. This checkout is **1.1.0-dev**. It is under active development; published images may contain older code. There is no current performance ranking or production-readiness claim.
+This checkout is **1.1.0-dev**. It is under active development; published images may contain older code. There is no current performance ranking or production-readiness claim.
 
 ## What is here
 
@@ -68,7 +69,7 @@ ctest --test-dir build --output-on-failure
 
 For a server-only build, pass `-DBUILD_TESTING=OFF`. See [CONTRIBUTING.md](CONTRIBUTING.md) for sanitizers and development checks.
 
-### Run, request, edit, repeat
+### Try a fixed response
 
 Start with the [fixed-response example](examples/fixtures/README.md). Validate its paths and routes, then start the server:
 
