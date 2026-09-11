@@ -1,62 +1,39 @@
-# Multi-stage Dockerfile for Tez Web Server
-# Stage 1: Build
-FROM alpine:latest AS builder
+FROM alpine:3.23@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40 AS build
 
-# Install build dependencies
-RUN apk add --no-cache \
-    g++ \
-    cmake \
-    make \
-    boost-dev \
-    nlohmann-json
-
-# Set working directory
-WORKDIR /app
-
-# Copy source files
+RUN apk add --no-cache g++ cmake ninja boost-dev nlohmann-json
+WORKDIR /src
 COPY CMakeLists.txt ./
-COPY src/ ./src/
-COPY include/ ./include/
-COPY config.json ./
-COPY static/ ./static/
+COPY include/ include/
+COPY src/ src/
+COPY config.json LICENSE ./
+COPY static/ static/
+ARG TEZ_VERSION=1.1.0-dev
+RUN cmake -S . -B build -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF \
+        -DTEZ_WARNINGS_AS_ERRORS=ON -DTEZ_VERSION="${TEZ_VERSION}" \
+    && cmake --build build --parallel 2 \
+    && cmake --install build --prefix /out --strip
 
-# Build the project
-RUN mkdir -p build && \
-    cd build && \
-    cmake .. && \
-    make && \
-    strip Tez
-
-# Stage 2: Runtime
-FROM alpine:latest
-
-# Install runtime dependencies only
-RUN apk add --no-cache \
-    boost-system \
-    boost-filesystem \
-    libstdc++ && \
-    adduser -D -s /bin/sh -h /app tez
-
-# Set working directory
+FROM alpine:3.23@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40
+RUN apk add --no-cache libstdc++ \
+    && addgroup -S -g 10001 tez \
+    && adduser -S -D -H -u 10001 -G tez -s /sbin/nologin tez
+ARG TEZ_VERSION=1.1.0-dev
+LABEL org.opencontainers.image.title="Tez" \
+      org.opencontainers.image.description="A small C++17 HTTP server built on Boost.Asio and Boost.Beast." \
+      org.opencontainers.image.url="https://github.com/Amogh-2404/Tez" \
+      org.opencontainers.image.source="https://github.com/Amogh-2404/Tez" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.authors="R.Amogh" \
+      org.opencontainers.image.version="${TEZ_VERSION}"
+COPY --from=build /out/bin/Tez /usr/local/bin/Tez
+COPY --from=build /out/share/tez/ /app/
+COPY --from=build /out/share/licenses/tez/LICENSE /usr/share/licenses/tez/LICENSE
 WORKDIR /app
-
-# Copy binary and required files from builder
-COPY --from=builder --chown=tez:tez /app/build/Tez ./
-COPY --from=builder --chown=tez:tez /app/config.json ./
-COPY --from=builder --chown=tez:tez /app/static ./static/
-
-# Create log directory
-RUN mkdir -p /app/logs && chown tez:tez /app/logs
-
-# Switch to non-root user
-USER tez
-
-# Expose port
+USER 10001:10001
 EXPOSE 8080
-
-# Health check
+STOPSIGNAL SIGTERM
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
-
-# Run the server
-CMD ["./Tez"]
+    CMD wget -q -T 2 -O /dev/null http://127.0.0.1:8080/health || exit 1
+ENTRYPOINT ["/usr/local/bin/Tez"]
+CMD ["--address", "0.0.0.0", "--config", "/app/config.json", "--static-dir", "/app/static"]

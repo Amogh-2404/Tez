@@ -1,115 +1,130 @@
 #include "middleware.hpp"
-#include <fstream>
 #include <ctime>
-#include <unordered_map>
-#include <list>
-#include <chrono>
-#include <mutex> // For thread safety
+#include <iostream>
+#include <string_view>
 
-// LRU Cache implementation
-template<typename Value>
-struct LRUCache {
-    struct CacheEntry {
-        Value value;
-        std::chrono::steady_clock::time_point timestamp;
-    };
+namespace {
+ResponseCache response_cache(100, 8 * 1024 * 1024, std::chrono::seconds(60));
+ResponseCache file_cache(50, 32 * 1024 * 1024, std::chrono::seconds(60));
+std::mutex log_mutex;
 
-    std::list<std::string> access_order;  // Most recent at front
-    std::unordered_map<std::string, std::pair<CacheEntry, typename std::list<std::string>::iterator>> data;
-    size_t max_size;
-    int ttl_seconds;
-
-    LRUCache(size_t max_sz, int ttl) : max_size(max_sz), ttl_seconds(ttl) {}
-
-    Value get(const std::string& key) {
-        auto it = data.find(key);
-        if (it == data.end()) {
-            return {};  // Not found
+std::string escape_log_field(std::string_view value) {
+    constexpr char hex[] = "0123456789abcdef";
+    constexpr std::size_t limit = 2048;
+    std::string escaped;
+    for (std::size_t i = 0; i < value.size() && i < limit; ++i) {
+        const auto c = static_cast<unsigned char>(value[i]);
+        if (c <= 0x20 || c >= 0x7f || c == '\\') {
+            escaped += "\\x";
+            escaped += hex[c >> 4];
+            escaped += hex[c & 0xf];
+        } else {
+            escaped += static_cast<char>(c);
         }
+    }
+    if (value.size() > limit)
+        escaped += "...";
+    return escaped;
+}
+} // namespace
 
-        auto& [entry, list_it] = it->second;
+ResponseCache::ResponseCache(std::size_t max_entries, std::size_t max_bytes, Clock::duration ttl)
+    : max_entries_(max_entries), max_bytes_(max_bytes), ttl_(ttl) {}
 
-        // Check if expired
-        if (std::chrono::steady_clock::now() - entry.timestamp >= std::chrono::seconds(ttl_seconds)) {
-            // Remove expired entry
-            access_order.erase(list_it);
-            data.erase(it);
+void ResponseCache::erase(Entries::iterator entry) {
+    bytes_ -= entry->second.bytes;
+    order_.erase(entry->second.position);
+    entries_.erase(entry);
+}
+
+Response ResponseCache::get(const std::string &key, Clock::time_point now) {
+    std::shared_ptr<const Response> response;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        const auto entry = entries_.find(key);
+        if (entry == entries_.end())
+            return {};
+        if (now - entry->second.inserted_at >= ttl_) {
+            erase(entry);
             return {};
         }
-
-        // Move to front (most recently used)
-        access_order.erase(list_it);
-        access_order.push_front(key);
-        it->second.second = access_order.begin();
-
-        return entry.value;
+        order_.splice(order_.begin(), order_, entry->second.position);
+        response = entry->second.response;
     }
+    // Large response copies do not hold the cache's mutex.
+    return *response;
+}
 
-    void put(const std::string& key, const Value& value) {
-        auto it = data.find(key);
-
-        // If key exists, update it and move to front
-        if (it != data.end()) {
-            access_order.erase(it->second.second);
-            access_order.push_front(key);
-            it->second.first.value = value;
-            it->second.first.timestamp = std::chrono::steady_clock::now();
-            it->second.second = access_order.begin();
-            return;
+void ResponseCache::put(const std::string &key, const Response &response, Clock::time_point now) {
+    std::size_t bytes = 0;
+    bool fits = max_entries_ != 0 && ttl_ > Clock::duration::zero();
+    for (const auto *field :
+         {&key, &response.status, &response.content_type, &response.body, &response.allow}) {
+        if (field->size() > max_bytes_ - bytes) {
+            fits = false;
+            break;
         }
+        bytes += field->size();
+    }
+    // Build the value before locking or replacing a valid entry.
+    const auto value = fits ? std::make_shared<const Response>(response) : nullptr;
+    std::lock_guard<std::mutex> lock(mutex_);
+    const auto old = entries_.find(key);
+    if (old != entries_.end())
+        erase(old);
+    if (!fits)
+        return;
 
-        // If cache is full, evict least recently used (LRU)
-        if (data.size() >= max_size) {
-            std::string lru_key = access_order.back();
-            access_order.pop_back();
-            data.erase(lru_key);
+    // Expired entries should not force eviction of live, less recent entries.
+    for (auto entry = entries_.begin(); entry != entries_.end();) {
+        if (now - entry->second.inserted_at >= ttl_) {
+            const auto expired = entry++;
+            erase(expired);
+        } else {
+            ++entry;
         }
-
-        // Insert new entry at front
-        access_order.push_front(key);
-        CacheEntry entry{value, std::chrono::steady_clock::now()};
-        data[key] = {entry, access_order.begin()};
     }
-
-    void clear() {
-        access_order.clear();
-        data.clear();
+    while (entries_.size() >= max_entries_ || bytes > max_bytes_ - bytes_) {
+        erase(entries_.find(order_.back()));
     }
-
-    size_t size() const {
-        return data.size();
+    order_.push_front(key);
+    try {
+        entries_.emplace(key, Entry{value, now, bytes, order_.begin()});
+    } catch (...) {
+        order_.pop_front();
+        throw;
     }
-};
-
-// Global caches with LRU eviction
-LRUCache<Response> cache(100, 60);       // Response cache: 100 entries, 60s TTL
-LRUCache<Response> file_cache(50, 60);   // File cache: 50 entries, 60s TTL
-std::mutex cache_mutex;
-std::mutex file_cache_mutex;
-
-void log_request(const std::string& client_ip, const std::string& method, const std::string& path) {
-    std::ofstream log_file("server.log", std::ios::app);
-    if (log_file) {
-        log_file << "[" << std::time(nullptr) << "] " << client_ip << " - " << method << " " << path << "\n";
-    }
+    bytes_ += bytes;
 }
 
-Response get_cached_response(const std::string& path){
-    std::lock_guard<std::mutex> lock(cache_mutex);
-    return cache.get(path);
+void ResponseCache::clear() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    entries_.clear();
+    order_.clear();
+    bytes_ = 0;
 }
 
-void cache_response(const std::string& path, const Response& response) {
-    std::lock_guard<std::mutex> lock(cache_mutex);
-    cache.put(path, response);
+void log_request(const std::string &client_ip, const std::string &method, const std::string &path) {
+    const auto pathname = std::string_view(path).substr(0, path.find('?'));
+    const auto line = "[" + std::to_string(std::time(nullptr)) + "] " +
+                      escape_log_field(client_ip) + " - " + escape_log_field(method) + " " +
+                      escape_log_field(pathname) + "\n";
+    std::lock_guard<std::mutex> lock(log_mutex);
+    std::cerr << line;
 }
 
-Response get_cached_file(const std::string& path) {
-    std::lock_guard<std::mutex> lock(file_cache_mutex);
-    return file_cache.get(path);
+Response get_cached_response(const std::string &path) {
+    return response_cache.get(path);
 }
 
-void cache_file(const std::string& path, const Response& response) {
-    std::lock_guard<std::mutex> lock(file_cache_mutex);
-    file_cache.put(path, response);
+void cache_response(const std::string &path, const Response &response) {
+    response_cache.put(path, response);
+}
+
+Response get_cached_file(const std::string &key) {
+    return file_cache.get(key);
+}
+
+void cache_file(const std::string &key, const Response &response) {
+    file_cache.put(key, response);
 }

@@ -1,572 +1,141 @@
-# Tez - High-Performance HTTP/1.1 Web Server
+<p align="center">
+  <img src="docs/assets/tez-banner.svg" alt="Tez — HTTP, close to the metal. A compact C++17 HTTP server." width="100%">
+</p>
 
-<div align="center">
+<p align="center">
+  <a href="https://github.com/Amogh-2404/Tez/actions/workflows/ci.yml"><img src="https://github.com/Amogh-2404/Tez/actions/workflows/ci.yml/badge.svg" alt="Build and test status"></a>
+  <a href="https://en.cppreference.com/w/cpp/17"><img src="https://img.shields.io/badge/C%2B%2B-17-343a40" alt="C++17"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-343a40" alt="MIT license"></a>
+</p>
 
-**A lightweight, high-performance HTTP/1.1 web server written in modern C++**
+<p align="center">
+  <a href="#build-and-run">Get started</a> ·
+  <a href="docs/configuration.md">Configuration</a> ·
+  <a href="docs/architecture.md">Architecture</a> ·
+  <a href="docs/deployment.md">Containers</a> ·
+  <a href="docs/engineering.md">Engineering notes</a>
+</p>
 
-[![CI/CD Pipeline](https://github.com/Amogh-2404/Tez/actions/workflows/ci.yml/badge.svg?branch=v1)](https://github.com/Amogh-2404/Tez/actions/workflows/ci.yml)
-[![Docker Pulls](https://img.shields.io/docker/pulls/ramogh2404/tez)](https://hub.docker.com/r/ramogh2404/tez)
-[![GitHub Release](https://img.shields.io/github/v/release/Amogh-2404/Tez)](https://github.com/Amogh-2404/Tez/releases/latest)
-[![C++17](https://img.shields.io/badge/C++-17-blue.svg)]()
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+Tez is my C++ HTTP server project: a small codebase for understanding what happens between accepting a connection and writing a response. It combines Boost.Beast's HTTP parser with Boost.Asio's asynchronous networking, JSON routes, and static file serving.
 
-[Features](#features) •
-[Quick Start](#quick-start) •
-[Documentation](#documentation) •
-[Performance](#performance) •
-[Contributing](#contributing)
+The focus is explicit behavior: bounded requests, ordered responses, controlled file access, and tests that exercise the actual wire protocol. This checkout is **1.1.0-dev**. It is under active development; published images may contain older code. There is no current performance ranking or production-readiness claim.
 
-</div>
+## What is here
 
----
+| Area | Behavior |
+| --- | --- |
+| Networking | Asynchronous accept, read, and write; multiple I/O workers; per-session strands |
+| HTTP | HTTP/1.0 and HTTP/1.1, persistent connections, ordered pipelining, chunked request bodies, `HEAD`, `Expect: 100-continue` |
+| Routing | Startup-loaded JSON responses; `/health`; `/echo` and `/api/data` demonstration endpoints |
+| Static files | Explicit document root, descriptor-relative file opens, symlink rejection, bounded in-memory cache with metadata revalidation |
+| Resource controls | Header/body limits, connection admission limit, operation deadlines, request cap per connection |
+| Operations | Command-line settings, stderr request logs, non-root container, unit and socket integration tests |
 
-## Overview
+TLS, HTTP/2, HTTP/3, WebSocket, compression, authentication, rate limiting, and persistent application storage are outside the current implementation. Static reads and log writes are synchronous inside I/O handlers. See the [protocol and resource limits](docs/configuration.md#limits) before deploying.
 
-Tez is a production-ready, asynchronous HTTP/1.1 web server built with C++ and Boost.Asio. Designed for **developers who need embedded HTTP server capabilities** in their C++ applications, Tez provides excellent performance, security, and ease of use without the complexity of larger web servers.
+## Build and run
 
-### Why Tez?
+Requirements: a C++17 compiler, CMake 3.20+, Boost 1.74+, and nlohmann/json 3.7+. Linux and macOS are the supported build targets. Tests also require GoogleTest and Python 3.8+.
 
-- **🚀 High Performance**: Async I/O with thread pool architecture, handling 10,000+ req/sec
-- **🔒 Secure by Default**: Path traversal protection, request size limits, LRU caching
-- **⚡ Low Latency**: In-memory caching with 60s TTL, optimized MIME type detection
-- **🛠️ Developer Friendly**: Simple JSON configuration, comprehensive logging
-- **📦 Lightweight**: ~700 lines of clean C++17 code, minimal dependencies
-- **🔧 Hackable**: Clear architecture, easy to understand and modify
+<details>
+<summary>Install dependencies</summary>
 
-Perfect for:
-- Embedded systems and IoT devices
-- Game servers requiring HTTP APIs
-- Microservices written in C++
-- Educational projects learning async I/O
-- Performance-critical applications
+macOS:
 
----
-
-## ⚠️ Production Use Notice
-
-Tez is an **educational-quality HTTP server** designed for learning, embedded systems, and portfolio projects.
-
-**✅ Great For:**
-- Learning async I/O and C++ networking patterns
-- Embedded systems and IoT prototypes (internal networks)
-- Portfolio and interview demonstrations
-- Understanding web server internals
-- Educational projects and tutorials
-
-**❌ NOT Recommended for Public-Facing Production:**
-- **No TLS/SSL support** - All traffic is unencrypted (use reverse proxy if needed)
-- **Performance limitations** - 3-10x slower than production servers
-- **Missing features** - No HTTP/2, WebSocket, or compression
-
-**For production web services**, consider battle-tested alternatives:
-- [nginx](https://nginx.org/) or [Caddy](https://caddyserver.com/) - Industry-standard reverse proxies
-- [Drogon](https://github.com/drogonframework/drogon) - Full-featured C++ framework (HTTP/2, WebSocket)
-- [cpp-httplib](https://github.com/yhirose/cpp-httplib) - Header-only, zero dependencies, TLS support
-
----
-
-## Features
-
-### Core HTTP Support
-- ✅ **HTTP/1.1 Protocol** with full header parsing
-- ✅ **Persistent Connections** (Keep-Alive) with configurable timeout
-- ✅ **Multiple HTTP Methods**: GET, POST, PUT, DELETE
-- ✅ **Request Body Parsing** via Content-Length header
-- ✅ **Static File Serving** from `/static/*` paths
-- ✅ **JSON-based Routing** via `config.json`
-- ✅ **RESTful API Support** with method-aware routing
-
-### Performance Features
-- ⚡ **Multi-threaded Request Handling** with thread pool
-- ⚡ **Auto-scaling Workers** based on CPU cores
-- ⚡ **Dual LRU Caching System**:
-  - Response cache (100 entries, 60s TTL)
-  - File cache (50 entries, 60s TTL)
-- ⚡ **Asynchronous I/O** with Boost.Asio
-- ⚡ **Efficient MIME Type Detection** with hash map lookup
-- ⚡ **One-time Config Loading** at startup
-
-### Security Features
-- 🔒 **Path Traversal Protection** with sanitized file paths
-- 🔒 **Request Size Limits**:
-  - Max Content-Length: 10 MB
-  - Max Header Size: 8 KB
-  - Max Keep-Alive Requests: 1000
-- 🔒 **Input Validation** on all user-provided data
-- 🔒 **Secure Default Responses** (403 Forbidden for invalid paths)
-- 🔒 **Thread-safe Caching** with mutex guards
-
-### Developer Features
-- 🛠️ **Request Logging** to `server.log` with timestamps
-- 🛠️ **Special Endpoints**:
-  - `/health` - Health check (JSON)
-  - `/echo` - Request echo (POST/PUT)
-  - `/api/data` - Full REST API demo
-- 🛠️ **Graceful Shutdown** (SIGINT/SIGTERM handling)
-- 🛠️ **Comprehensive Error Handling** with proper HTTP status codes
-- 🛠️ **Unit Tests** with Google Test framework
-
----
-
-## Quick Start
-
-### Prerequisites
-
-- **C++17 compiler** (GCC 7+, Clang 5+, MSVC 2017+)
-- **CMake 3.10+**
-- **Boost** (1.70+) for Asio
-- **nlohmann/json** for JSON parsing
-- **Google Test** (optional, for unit tests)
-
-### Installation
-
-#### macOS
-```bash
-brew install boost nlohmann-json cmake
-brew install googletest  # Optional, for tests
+```sh
+brew install cmake boost nlohmann-json googletest python
 ```
 
-#### Ubuntu/Debian
-```bash
+Ubuntu / Debian:
+
+```sh
 sudo apt-get update
-sudo apt-get install build-essential cmake libboost-all-dev nlohmann-json3-dev
-sudo apt-get install libgtest-dev  # Optional, for tests
+sudo apt-get install build-essential cmake libboost-all-dev nlohmann-json3-dev libgtest-dev python3
 ```
 
-### Build & Run
+</details>
 
-```bash
-# Clone the repository
-git clone https://github.com/Amogh-2404/tez.git
-cd tez
+From the repository root:
 
-# Build
-mkdir -p build && cd build
-cmake ..
-make
-
-# Run the server
-./Tez
+```sh
+git clone https://github.com/Amogh-2404/Tez.git
+cd Tez
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+cmake --build build --parallel 2
+ctest --test-dir build --output-on-failure
+./build/Tez --config config.json --static-dir static
 ```
 
-The server will start on `http://localhost:8080` 🎉
+Tez listens on `127.0.0.1:8080`. Stop it with `Ctrl-C`. In another terminal:
 
-### First Request
-
-```bash
-# Health check
-curl http://localhost:8080/health
-# {"status":"ok"}
-
-# Serve static file
-curl http://localhost:8080/static/style.css
-
-# Test POST endpoint
-curl -X POST http://localhost:8080/echo \
-  -H "Content-Type: application/json" \
-  -d '{"message":"Hello, Tez!"}'
-
-# REST API
-curl http://localhost:8080/api/data
-# {"data":["item1","item2","item3"]}
+```sh
+curl --fail http://127.0.0.1:8080/health
+curl --fail http://127.0.0.1:8080/static/style.css
+curl --head http://127.0.0.1:8080/health
+curl --fail http://127.0.0.1:8080/echo \
+  -H 'Content-Type: application/json' \
+  --data-binary '{"message":"hello, Tez"}'
 ```
 
----
+`/health` returns `{"status":"ok"}`. `/echo` returns the method, received body, and byte count. `/api/data` demonstrates method dispatch; its create, update, and delete responses do not persist data.
 
-## Documentation
+For a server-only build, pass `-DBUILD_TESTING=OFF`. See [CONTRIBUTING.md](CONTRIBUTING.md) for sanitizers and development checks.
 
-### Configuration
+## Run in Docker
 
-Routes are defined in `config.json` (located in project root):
+Build the current checkout to get the behavior documented here:
+
+```sh
+docker build -t tez:local .
+docker run --rm --name tez \
+  --read-only --cap-drop=ALL --security-opt=no-new-privileges \
+  -p 127.0.0.1:8080:8080 tez:local
+```
+
+The image runs as UID/GID `10001`, listens on port `8080` inside the container, and writes request logs to stderr. See [deployment](docs/deployment.md) for bind mounts, Compose, image tags, and resource sizing. The [Docker Hub overview](docs/dockerhub.md) is maintained alongside the code.
+
+## Configure it
+
+Runtime settings are command-line flags:
+
+```sh
+./build/Tez --address 127.0.0.1 --port 9000 --threads 2 \
+  --timeout 15 --max-connections 64 --body-limit 1048576 \
+  --config config.json --static-dir static
+```
+
+Define fixed responses in `config.json`:
 
 ```json
 {
-  "/": {
+  "/hello": {
     "status": "200 OK",
-    "content_type": "text/html; charset=utf-8",
-    "body": "<h1>Welcome to Tez!</h1>"
-  },
-  "/about": {
-    "status": "200 OK",
-    "content_type": "text/html; charset=utf-8",
-    "body": "<h1>About Tez</h1><p>High-performance C++ web server</p>"
+    "content_type": "text/plain; charset=utf-8",
+    "body": "hello, Tez\n"
   }
 }
 ```
 
-### Static Files
+Configuration is read at startup. Restart after editing routes. Static files live under `/static/`; for example, `static/style.css` is served at `/static/style.css`. The [configuration reference](docs/configuration.md) covers path resolution, validation, methods, limits, and compatibility.
 
-Place static files in the `static/` directory:
+## How it works
 
-```
-static/
-├── style.css
-├── script.js
-├── images/
-│   └── logo.png
-└── index.html
-```
+<img src="diagrams/01-system-overview.svg" alt="Connections enter the asynchronous listener, then strand-serialized HTTP sessions. Sessions dispatch to immutable routes or the confined static file reader and metadata-validated file cache, and write responses asynchronously." width="100%">
 
-Access via: `http://localhost:8080/static/style.css`
+A connection owns its parser, retained input buffer, deadline, and response lifetime. I/O workers share an `io_context`; a strand serializes each session. Configured routes are immutable after startup. File access checks run before cache hits, so a cached response does not bypass path validation.
 
-Supported MIME types: HTML, CSS, JS, PNG, JPEG, GIF, SVG, WebP, MP4, MP3, PDF, ZIP, fonts, and more.
+Read the [architecture](docs/architecture.md) for ownership and shutdown behavior, and the [engineering notes](docs/engineering.md) for standards, tradeoffs, and follow-up work.
 
-### Special Endpoints
+## Performance evidence
 
-#### Health Check
-```bash
-GET /health
-```
-Returns: `{"status":"ok"}`
+No benchmark of the current implementation is available. The four [historical captures](metrics/) from October 2025 contain only 100 requests each and runs lasting roughly 9–11 ms. They cover different response sizes and lack enough environment metadata for comparison. They do not establish current throughput, latency, or a speedup over other servers.
 
-#### Echo Endpoint
-```bash
-POST /echo
-Content-Type: application/json
+The [measurement plan](docs/performance.md) records those results without extrapolation and defines how to evaluate future changes on a suitable machine. Correctness checks and architectural reasoning are kept separate from measured performance.
 
-{"test": "data"}
-```
-Returns:
-```json
-{
-  "method": "POST",
-  "received_body": "{\"test\": \"data\"}",
-  "body_length": 16
-}
-```
+## Contribute
 
-#### REST API Demo
-```bash
-# List resources
-GET /api/data
+Start with [CONTRIBUTING.md](CONTRIBUTING.md). Reproducible bugs, protocol edge cases, documentation corrections, and focused patches are welcome. Report vulnerabilities privately using [SECURITY.md](SECURITY.md).
 
-# Create resource
-POST /api/data -d '{"name":"New Item"}'
+Built with [Boost.Beast](https://www.boost.org/doc/libs/latest/libs/beast/doc/html/index.html), [Boost.Asio](https://www.boost.org/doc/libs/latest/doc/html/boost_asio.html), [nlohmann/json](https://github.com/nlohmann/json), and [GoogleTest](https://github.com/google/googletest).
 
-# Update resource
-PUT /api/data -d '{"name":"Updated Item"}'
-
-# Delete resource
-DELETE /api/data
-```
-
-### Architecture
-
-<div align="center">
-<img src="diagrams/01-system-overview.svg" alt="System Architecture Overview" width="850">
-</div>
-
-**Key Components:**
-- **main.cpp**: Entry point, async connection handling, thread pool management
-- **router.cpp**: Route handling, config loading, method-aware routing
-- **file_server.cpp**: Static file serving, path sanitization, MIME detection
-- **middleware.cpp**: Logging, LRU caching (response + file)
-- **thread_pool.cpp**: Fixed-size thread pool for concurrent requests
-- **request.cpp**: HTTP request parsing
-
-### Request Lifecycle
-
-<div align="center">
-<img src="diagrams/02-request-flow.svg" alt="Request Lifecycle" width="900">
-</div>
-
-### TCP Connection ↔ Boost.Asio Mapping
-
-<div align="center">
-<img src="diagrams/06-tcp-lifecycle.svg" alt="TCP Lifecycle mapped to Boost.Asio" width="800">
-</div>
-
----
-
-## Performance
-
-### Threading Model
-
-<div align="center">
-<img src="diagrams/03-threading-model.svg" alt="Threading Model" width="850">
-</div>
-
-### LRU Caching System
-
-<div align="center">
-<img src="diagrams/04-lru-cache.svg" alt="LRU Cache — O(1) Get & Put" width="900">
-</div>
-
-### Benchmarks
-
-Tested on MacBook Pro (M1, 8 cores):
-
-| Scenario | Requests/sec | Avg Latency | p99 Latency |
-|----------|-------------|-------------|-------------|
-| `/health` (cached) | ~10,896 | 0.5ms | 2ms |
-| Static file (cached) | ~8,500 | 1.2ms | 5ms |
-| JSON POST echo | ~7,200 | 1.8ms | 8ms |
-| Config route (cached) | ~10,500 | 0.6ms | 3ms |
-
-**Configuration**: Default settings, 8 worker threads
-
-### Running Benchmarks
-
-```bash
-# Install ApacheBench
-brew install httpd  # macOS
-sudo apt-get install apache2-utils  # Ubuntu
-
-# Run benchmark
-ab -n 10000 -c 100 http://localhost:8080/health
-```
-
-### Optimization Tips
-
-1. **Increase worker threads** for CPU-bound workloads
-2. **Enable file caching** for frequently accessed static files
-3. **Use config.json** for simple routes instead of file I/O
-4. **Tune cache sizes** in middleware.cpp (default: 100 response, 50 file)
-5. **Adjust keep-alive limits** in main.cpp (timeout, max requests)
-
----
-
-## Security
-
-### Path Sanitization — Defense in Depth
-
-<div align="center">
-<img src="diagrams/05-security-defense.svg" alt="Path Sanitization Defense Layers" width="650">
-</div>
-
-### Security Features
-
-Tez includes multiple layers of security protection:
-
-1. **Path Traversal Protection**
-   - Sanitizes all file paths
-   - Prevents directory escape (`../`, `~`, etc.)
-   - Validates paths stay within static directory
-
-2. **Request Size Limits**
-   - Content-Length: 10 MB max (configurable in main.cpp:21)
-   - Header size: 8 KB max (configurable in main.cpp:22)
-   - Keep-alive requests: 1000 max per connection
-
-3. **Input Validation**
-   - Validates Content-Length header
-   - Rejects malformed requests (400 Bad Request)
-   - Returns 413 Payload Too Large for oversized bodies
-
-4. **LRU Cache Security**
-   - Prevents cache poisoning attacks
-   - Evicts least-recently-used entries (not all entries)
-   - Thread-safe with mutex protection
-
-### Reporting Security Issues
-
-Please report security vulnerabilities to: [ramogh2404@gmail.com](mailto:ramogh2404@gmail.com)
-
-See [SECURITY.md](SECURITY.md) for our security policy and disclosure process.
-
----
-
-## Testing
-
-### Running Tests
-
-```bash
-cd build
-make TezTests  # Build test suite
-./TezTests     # Run all tests
-```
-
-### Test Coverage
-
-Current test files:
-- `test_router.cpp`: Health endpoint, 404 handling, caching
-- `test_middleware.cpp`: Logging, LRU caching, TTL expiration
-- `test_file_server.cpp`: Static serving, MIME types, path security
-- `test_response.cpp`: Response struct initialization
-
-### Manual Testing
-
-```bash
-# Test keep-alive
-curl -v http://localhost:8080/health
-
-# Test large POST (should fail at 10MB+)
-dd if=/dev/zero bs=1M count=11 | curl -X POST http://localhost:8080/echo --data-binary @-
-
-# Test path traversal (should return 403)
-curl http://localhost:8080/static/../../etc/passwd
-
-# Test concurrent requests
-seq 1 100 | xargs -I{} -P 10 curl -s http://localhost:8080/health > /dev/null
-```
-
----
-
-## Deployment
-
-### Docker (Recommended)
-
-```dockerfile
-FROM alpine:latest
-RUN apk add --no-cache boost-dev nlohmann-json g++ cmake make
-
-WORKDIR /app
-COPY . .
-RUN mkdir -p build && cd build && cmake .. && make
-
-EXPOSE 8080
-CMD ["./build/Tez"]
-```
-
-Build and run:
-```bash
-docker build -t tez .
-docker run -p 8080:8080 tez
-```
-
-### Systemd Service (Linux)
-
-Create `/etc/systemd/system/tez.service`:
-
-```ini
-[Unit]
-Description=Tez Web Server
-After=network.target
-
-[Service]
-Type=simple
-User=www-data
-WorkingDirectory=/opt/tez
-ExecStart=/opt/tez/build/Tez
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start:
-```bash
-sudo systemctl enable tez
-sudo systemctl start tez
-sudo systemctl status tez
-```
-
----
-
-## Roadmap
-
-### Phase 1 (Complete ✅)
-- [x] HTTP/1.1 protocol support
-- [x] Persistent connections (keep-alive)
-- [x] Multi-threaded request handling
-- [x] LRU caching system
-- [x] Security hardening (path traversal, size limits)
-
-### Phase 2 (In Progress 🚧)
-- [ ] TLS/SSL support (HTTPS)
-- [ ] Response compression (gzip/brotli)
-- [ ] YAML configuration format
-- [ ] Command-line argument parsing
-- [ ] Structured logging with levels
-
-### Phase 3 (Planned 📋)
-- [ ] HTTP/2 support
-- [ ] WebSocket support
-- [ ] Reverse proxy capabilities
-- [ ] Rate limiting per IP
-- [ ] Metrics export (Prometheus)
-
-### Phase 4 (Future 🔮)
-- [ ] Plugin system
-- [ ] Hot config reload
-- [ ] Admin dashboard
-- [ ] Load balancing
-- [ ] Header-only library option
-
----
-
-## Contributing
-
-Contributions are welcome! Here's how you can help:
-
-1. **Fork the repository**
-2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
-3. **Make your changes** and add tests
-4. **Run the test suite**: `make TezTests && ./TezTests`
-5. **Commit your changes**: `git commit -m 'Add amazing feature'`
-6. **Push to the branch**: `git push origin feature/amazing-feature`
-7. **Open a Pull Request**
-
-### Code Style
-
-- Follow modern C++17 conventions
-- Use RAII for resource management
-- Include comments for complex logic
-- Add unit tests for new features
-- Keep functions under 50 lines when possible
-
-### Development Setup
-
-```bash
-# Install development dependencies
-brew install clang-format cmake-format
-
-# Format code
-clang-format -i src/*.cpp include/*.hpp
-
-# Run linter
-cppcheck src/ include/
-```
-
----
-
-## FAQ
-
-**Q: How do I change the port?**
-A: Edit `main.cpp:196` and change `8080` to your desired port. Rebuild with `make`.
-
-**Q: Can I use Tez in production?**
-A: Tez is production-ready for embedded use cases, but consider adding TLS/SSL for public-facing deployments (coming in Phase 2).
-
-**Q: How do I increase cache size?**
-A: Edit `middleware.cpp:85-86` to change cache limits (default: 100 response, 50 file entries).
-
-**Q: Does Tez support HTTPS?**
-A: Not yet. TLS/SSL support is planned for Phase 2. For now, use a reverse proxy (nginx, Caddy) for HTTPS.
-
-**Q: How do I enable debug logging?**
-A: Logging is currently minimal. Enhanced structured logging is planned for Phase 2.
-
-**Q: Can I use Tez as a library?**
-A: Not currently, but a header-only option is planned for Phase 4.
-
----
-
-## License
-
-This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
-
----
-
-## Acknowledgments
-
-- Built with [Boost.Asio](https://www.boost.org/doc/libs/release/libs/asio/) for async I/O
-- JSON parsing by [nlohmann/json](https://github.com/nlohmann/json)
-- Testing with [Google Test](https://github.com/google/googletest)
-
----
-
-## Contact
-
-- **Issues**: [GitHub Issues](https://github.com/Amogh-2404/tez/issues)
-- **Security**: [ramogh2404@gmail.com](mailto:ramogh2404@gmail.com)
-
----
-
-<div align="center">
-
-**Made by developers, for developers** 🚀
-
-If you find Tez useful, please consider giving it a ⭐ on GitHub!
-
-</div>
+Maintained by **R. Amogh**. [MIT licensed](LICENSE).

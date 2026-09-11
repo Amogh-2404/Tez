@@ -1,7 +1,7 @@
 name: Bug Report
 description: Report a bug or unexpected behavior
 title: "[Bug]: "
-labels: ["bug", "triage"]
+labels: ["bug"]
 body:
   - type: markdown
     attributes:
@@ -86,7 +86,7 @@ body:
     attributes:
       label: Compiler
       description: Which compiler and version?
-      placeholder: e.g., GCC 11.3, Clang 15.0, MSVC 2022
+      placeholder: e.g., GCC 11, Clang 18, Apple Clang 16
     validations:
       required: true
 

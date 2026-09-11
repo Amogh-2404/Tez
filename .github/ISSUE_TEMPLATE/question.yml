@@ -9,10 +9,10 @@ body:
         Have a question? We're here to help!
 
         **Before asking:**
-        - Check the [README](https://github.com/Amogh-2404/tez#readme)
-        - Check the [documentation](https://github.com/Amogh-2404/tez#documentation)
-        - Search [existing issues](https://github.com/Amogh-2404/tez/issues)
-        - Check the [README](https://github.com/Amogh-2404/tez#architecture) for architecture details
+        - Check the [README](https://github.com/Amogh-2404/Tez#readme)
+        - Check the [documentation](https://github.com/Amogh-2404/Tez#documentation)
+        - Search [existing issues](https://github.com/Amogh-2404/Tez/issues)
+        - Check the [README](https://github.com/Amogh-2404/Tez/blob/main/docs/architecture.md) for architecture details
 
   - type: textarea
     id: question

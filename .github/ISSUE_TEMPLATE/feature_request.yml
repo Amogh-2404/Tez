@@ -58,20 +58,6 @@ body:
       required: true
 
   - type: dropdown
-    id: roadmap
-    attributes:
-      label: Roadmap Alignment
-      description: Does this align with existing roadmap phases?
-      options:
-        - Phase 2 (TLS/SSL, compression, config)
-        - Phase 3 (HTTP/2, WebSocket, rate limiting)
-        - Phase 4 (plugins, hot reload)
-        - New/Not in roadmap
-        - Not sure
-    validations:
-      required: false
-
-  - type: dropdown
     id: willing-to-help
     attributes:
       label: Willing to Contribute?
@@ -100,7 +86,7 @@ body:
       options:
         - label: I searched existing issues and didn't find a duplicate
           required: true
-        - label: This feature aligns with Tez's goals (educational/embedded focus)
+        - label: This feature aligns with Tez's documented scope
           required: true
         - label: I've provided clear use cases
           required: true

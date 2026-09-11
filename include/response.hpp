@@ -7,6 +7,7 @@ struct Response {
     std::string status;
     std::string content_type;
     std::string body;
+    std::string allow;
 };
 
 #endif

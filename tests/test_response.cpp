@@ -1,5 +1,5 @@
-#include <gtest/gtest.h>
 #include "../include/response.hpp"
+#include <gtest/gtest.h>
 
 TEST(ResponseTest, StructInitialization) {
     Response resp;
