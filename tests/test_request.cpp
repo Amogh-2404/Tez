@@ -136,17 +136,27 @@ TEST(RequestTest, UnsupportedVersionDiffersFromMalformedVersion) {
 TEST(RequestTest, RejectsFieldsThatChangeRequestSemanticsInTrailers) {
     for (const auto &field :
          {"Host: another", "Content-Length: 1", "Transfer-Encoding: chunked", "Connection: close",
-          "Authorization: secret", "Content-Type: text/plain"}) {
+          "Authorization: secret", "Content-Type: text/plain", "Proxy-Connection: close",
+          "Cookie: session=secret", "Proxy-Authorization: secret"}) {
         SCOPED_TRACE(field);
-        rejects("POST /echo HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\r\n"
-                "1\r\na\r\n0\r\n" +
-                std::string(field) + "\r\n\r\n");
+        for (const bool advertised : {false, true}) {
+            SCOPED_TRACE(advertised);
+            const auto declaration =
+                advertised
+                    ? "Trailer: " + std::string(field).substr(0, std::string(field).find(':')) +
+                          "\r\n"
+                    : "";
+            rejects("POST /echo HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n" +
+                    declaration + "\r\n1\r\na\r\n0\r\n" + std::string(field) + "\r\n\r\n");
+        }
     }
-    EXPECT_EQ(
-        parse_request("POST /echo HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\r\n"
-                      "1\r\na\r\n0\r\nX-Checksum: test\r\n\r\n")
-            .body,
-        "a");
+    for (const auto &declaration : {"", "Trailer: X-Checksum\r\n"}) {
+        const auto request = parse_request(
+            "POST /echo HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n" +
+            std::string(declaration) + "\r\n1\r\na\r\n0\r\nX-Checksum: test\r\n\r\n");
+        EXPECT_EQ(request.body, "a");
+        EXPECT_EQ(request.headers.count("x-checksum"), 0u);
+    }
 }
 
 TEST(RequestTest, RejectsRawPunctuationOutsideUriPathAndQueryGrammar) {
@@ -170,4 +180,15 @@ TEST(RequestTest, PreservesUriDelimitersPercentEncodingAndIpv6Authorities) {
     }
     EXPECT_EQ(parse_request("GET http://[::1]?q=%5B1%5D HTTP/1.1\r\nHost: [::1]\r\n\r\n").path,
               "/");
+}
+
+TEST(RequestTest, TrailersCannotOverwriteOrAugmentOriginalHeaderFields) {
+    const auto request = parse_request(
+        "POST /echo HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n"
+        "Trailer: X-Label, If-Match, Digest\r\nX-Label: original\r\nIf-Match: initial\r\n\r\n"
+        "1\r\na\r\n0\r\nX-Label: trailer\r\nIf-Match: trailer\r\nDigest: ignored\r\n\r\n");
+    EXPECT_EQ(request.body, "a");
+    EXPECT_EQ(request.headers.at("x-label"), "original");
+    EXPECT_EQ(request.headers.at("if-match"), "initial");
+    EXPECT_EQ(request.headers.count("digest"), 0u);
 }

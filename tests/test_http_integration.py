@@ -260,11 +260,24 @@ class HttpIntegrationTest(unittest.TestCase):
 
     def test_forbidden_trailers_cannot_change_request_semantics(self):
         for field in [b"Host: another", b"Content-Length: 1", b"Transfer-Encoding: chunked",
-                      b"Connection: close", b"Authorization: secret", b"Content-Type: text/plain"]:
-            with self.subTest(field=field):
-                response = self.request(b"POST /echo HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\r\n"
-                                        b"1\r\na\r\n0\r\n" + field + b"\r\n\r\n")
-                self.assertEqual(response[1], 400)
+                      b"Connection: close", b"Authorization: secret", b"Content-Type: text/plain",
+                      b"Proxy-Connection: close", b"Cookie: session=secret", b"Proxy-Authorization: secret"]:
+            for advertised in [False, True]:
+                with self.subTest(field=field, advertised=advertised):
+                    declaration = b"Trailer: " + field.split(b":", 1)[0] + b"\r\n" if advertised else b""
+                    response = self.request(b"POST /echo HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n" +
+                                            declaration + b"\r\n1\r\na\r\n0\r\n" + field + b"\r\n\r\n")
+                    self.assertEqual(response[1], 400)
+
+    def test_fragmented_forbidden_trailer_closes_before_next_request(self):
+        with self.server.connect() as sock:
+            sock.sendall(b"POST /echo HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\nExpect: 100-continue\r\n\r\n")
+            reader = Wire(sock)
+            self.assertEqual(reader.response()[1], 100)
+            for part in [b"1\r\na\r\n0\r\nConnec", b"tion: clo", b"se\r\n\r\nGET /health HTTP/1.1\r\nHost: localhost\r\n\r\n"]:
+                sock.sendall(part)
+            self.assertEqual(reader.response()[1], 400)
+            reader.closed()
 
     def test_header_limit(self):
         response = self.request(b"GET / HTTP/1.1\r\nHost: localhost\r\nX-Large: " + b"a" * 9000 + b"\r\n\r\n")
@@ -388,6 +401,21 @@ class HttpIntegrationTest(unittest.TestCase):
                 first.sendall(b"GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
                 self.assertEqual(reader.response()[1], 200)
                 reader.closed()
+            # Session destruction releases admission capacity asynchronously.
+            deadline = time.monotonic() + 3
+            while True:
+                try:
+                    with server.connect() as recovered:
+                        recovered.settimeout(1)
+                        recovered.sendall(b"GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                        reader = Wire(recovered)
+                        self.assertEqual(reader.response()[1], 200)
+                        reader.closed()
+                    break
+                except (ConnectionError, TimeoutError, AssertionError):
+                    if time.monotonic() >= deadline:
+                        raise
+                    time.sleep(0.01)
 
     def test_signal_shutdown_does_not_wait_for_slow_clients(self):
         with Server(BINARY, "--timeout", "30") as server:

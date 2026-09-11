@@ -2,6 +2,7 @@
 #define REQUEST_HPP
 
 #include <boost/beast/http.hpp>
+#include <boost/beast/version.hpp>
 #include <cstddef>
 #include <stdexcept>
 #include <string>
@@ -12,6 +13,20 @@ inline constexpr std::size_t MAX_HEADER_SIZE = 8 * 1024;
 inline constexpr std::size_t DEFAULT_BODY_LIMIT = 1024 * 1024;
 inline constexpr std::size_t MAX_CONTENT_LENGTH = 10 * 1024 * 1024;
 inline constexpr std::size_t MAX_KEEPALIVE_REQUESTS = 1000;
+
+// Beast 359 (Boost 1.90) split trailer callbacks from ordinary fields. Inspect
+// trailers before its message parser can discard fields that Tez must reject.
+#if BOOST_BEAST_VERSION >= 359
+class RequestParser : public boost::beast::http::request_parser<boost::beast::http::string_body> {
+  private:
+    void on_trailer_field_impl(boost::beast::http::field name,
+                               boost::beast::string_view name_string,
+                               boost::beast::string_view value,
+                               boost::system::error_code &error) override;
+};
+#else
+using RequestParser = boost::beast::http::request_parser<boost::beast::http::string_body>;
+#endif
 
 struct Request {
     std::string method;
@@ -41,8 +56,10 @@ void validate_request_trailers(const boost::beast::http::request_header<> &reque
 unsigned request_error_status(const boost::system::error_code &error,
                               const std::string &unconsumed = "");
 
-// Move a complete, validated Beast message into the application representation.
-Request make_request(boost::beast::http::request<boost::beast::http::string_body> &&request);
+// Build from the original header section and a completed body. Permitted trailers
+// are ignored rather than merged into application headers (RFC 9112, section 7.1.2).
+Request make_request(const boost::beast::http::request_header<> &initial_header,
+                     std::string &&body);
 
 // Parse exactly one complete message; rejects malformed, incomplete, or trailing data.
 Request parse_request(const std::string &raw_request);

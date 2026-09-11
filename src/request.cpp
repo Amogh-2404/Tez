@@ -1,6 +1,7 @@
 #include "request.hpp"
 
 #include <algorithm>
+#include <array>
 #include <boost/asio/ip/address.hpp>
 #include <charconv>
 #include <climits>
@@ -9,6 +10,24 @@
 
 namespace {
 namespace http = boost::beast::http;
+
+constexpr std::array<http::field, 17> forbidden_trailer_fields = {http::field::host,
+                                                                  http::field::content_length,
+                                                                  http::field::transfer_encoding,
+                                                                  http::field::connection,
+                                                                  http::field::proxy_connection,
+                                                                  http::field::keep_alive,
+                                                                  http::field::authorization,
+                                                                  http::field::proxy_authorization,
+                                                                  http::field::cookie,
+                                                                  http::field::content_type,
+                                                                  http::field::content_encoding,
+                                                                  http::field::content_range,
+                                                                  http::field::expect,
+                                                                  http::field::trailer,
+                                                                  http::field::upgrade,
+                                                                  http::field::te,
+                                                                  http::field::range};
 
 bool ascii_digit(char ch) {
     return ch >= '0' && ch <= '9';
@@ -139,6 +158,20 @@ std::string request_path(const http::request_header<> &request) {
 
 } // namespace
 
+#if BOOST_BEAST_VERSION >= 359
+void RequestParser::on_trailer_field_impl(boost::beast::http::field name, boost::beast::string_view,
+                                          boost::beast::string_view,
+                                          boost::system::error_code &error) {
+    if (std::find(forbidden_trailer_fields.begin(), forbidden_trailer_fields.end(), name) !=
+        forbidden_trailer_fields.end()) {
+        error = http::error::bad_field;
+        return;
+    }
+    // Tez does not consume trailer metadata. RFC 9112 section 7.1.2 prohibits
+    // merging arbitrary trailers into the initial header section, so discard them.
+}
+#endif
+
 bool valid_uri_path(std::string_view path) {
     return !path.empty() && path.front() == '/' && valid_path_or_query(path, false);
 }
@@ -163,12 +196,7 @@ unsigned request_error_status(const boost::system::error_code &ec, const std::st
 
 void validate_request_trailers(const boost::beast::http::request_header<> &request,
                                const boost::beast::http::request_header<> &initial) {
-    for (const auto field :
-         {http::field::host, http::field::content_length, http::field::transfer_encoding,
-          http::field::connection, http::field::keep_alive, http::field::authorization,
-          http::field::proxy_authorization, http::field::cookie, http::field::content_type,
-          http::field::content_encoding, http::field::content_range, http::field::expect,
-          http::field::trailer, http::field::upgrade, http::field::te, http::field::range}) {
+    for (const auto field : forbidden_trailer_fields) {
         if (request.count(field) != initial.count(field))
             throw RequestError(400, "Forbidden request trailer field");
     }
@@ -208,13 +236,14 @@ void validate_request_header(const boost::beast::http::request_header<> &request
     request_path(request);
 }
 
-Request make_request(boost::beast::http::request<boost::beast::http::string_body> &&message) {
-    validate_request_header(message.base());
+Request make_request(const boost::beast::http::request_header<> &initial_header,
+                     std::string &&body) {
+    validate_request_header(initial_header);
     Request request;
-    request.method = std::string(message.method_string());
-    request.path = request_path(message.base());
-    request.version = message.version() == 11 ? "HTTP/1.1" : "HTTP/1.0";
-    for (const auto &field : message) {
+    request.method = std::string(initial_header.method_string());
+    request.path = request_path(initial_header);
+    request.version = initial_header.version() == 11 ? "HTTP/1.1" : "HTTP/1.0";
+    for (const auto &field : initial_header) {
         std::string name(field.name_string());
         std::transform(name.begin(), name.end(), name.begin(), [](unsigned char ch) {
             return static_cast<char>(ch >= 'A' && ch <= 'Z' ? ch + ('a' - 'A') : ch);
@@ -225,13 +254,13 @@ Request make_request(boost::beast::http::request<boost::beast::http::string_body
             it->second += std::string(field.value());
         }
     }
-    request.body = std::move(message.body());
+    request.body = std::move(body);
     return request;
 }
 
 Request parse_request(const std::string &raw_request) {
     namespace http = boost::beast::http;
-    http::request_parser<http::string_body> parser;
+    RequestParser parser;
     parser.header_limit(MAX_HEADER_SIZE);
     parser.body_limit(MAX_CONTENT_LENGTH);
     boost::system::error_code ec;
@@ -252,7 +281,7 @@ Request parse_request(const std::string &raw_request) {
     if (consumed != raw_request.size())
         throw RequestError(400, "Trailing data after request");
     validate_request_trailers(parser.get().base(), initial_header);
-    return make_request(parser.release());
+    return make_request(initial_header, std::move(parser.get().body()));
 }
 
 int get_content_length(const std::unordered_map<std::string, std::string> &headers) {

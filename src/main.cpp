@@ -143,7 +143,7 @@ class Session : public std::enable_shared_from_this<Session> {
     Options options_;
     std::shared_ptr<std::atomic_size_t> active_;
     std::string client_ip_;
-    std::optional<http::request_parser<http::string_body>> parser_;
+    std::optional<RequestParser> parser_;
     std::optional<http::request_header<>> initial_header_;
     std::optional<http::response<http::string_body>> response_;
     std::optional<http::response_serializer<http::string_body>> serializer_;
@@ -237,12 +237,12 @@ class Session : public std::enable_shared_from_this<Session> {
 
     void dispatch_request() {
         try {
-            // Validate again after parsing trailers so they cannot inject Host,
-            // Content-Length, or an unsupported transfer coding after the body.
+            // Older Beast versions merge trailers into the header container. Newer
+            // versions validate them in RequestParser before any fields are discarded.
             validate_request_header(parser_->get().base());
             validate_request_trailers(parser_->get().base(), *initial_header_);
             keep_alive_ = parser_->get().keep_alive() && ++request_count_ < MAX_KEEPALIVE_REQUESTS;
-            auto request = make_request(parser_->release());
+            auto request = make_request(*initial_header_, std::move(parser_->get().body()));
             log_request(client_ip_, request.method, request.path);
             Response result;
             if (request.path.compare(0, 8, "/static/") == 0) {
