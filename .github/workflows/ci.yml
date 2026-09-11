@@ -161,7 +161,6 @@ jobs:
     timeout-minutes: 30
     outputs:
       digest: ${{ steps.image.outputs.digest }}
-      tags: ${{ steps.meta.outputs.tags }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -247,17 +246,30 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
+      # Job outputs containing the registry username are dropped by secret masking.
+      # Generate public aliases in the job that consumes them; only pass the digest.
+      - uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        id: meta
+        with:
+          images: ramogh2404/tez
+          tags: |
+            type=raw,value=main,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,format=long
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
       - name: Promote tested digest to public tags
         env:
           IMAGE_DIGEST: ${{ needs.candidate.outputs.digest }}
-          IMAGE_TAGS: ${{ needs.candidate.outputs.tags }}
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
         run: |
           python3 - <<'PYCODE'
           import os, subprocess
+          tags = [tag.strip() for tag in os.environ['IMAGE_TAGS'].splitlines() if tag.strip()]
+          if not tags:
+              raise SystemExit('No public image tags were generated.')
           args = ['docker', 'buildx', 'imagetools', 'create']
-          for tag in os.environ['IMAGE_TAGS'].splitlines():
-              if tag.strip():
-                  args.extend(['--tag', tag.strip()])
+          for tag in tags:
+              args.extend(['--tag', tag])
           args.append('ramogh2404/tez@' + os.environ['IMAGE_DIGEST'])
           subprocess.run(args, check=True)
           PYCODE
